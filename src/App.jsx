@@ -9,6 +9,11 @@ import Settings from './components/Settings';
 const FAVORITES_STORAGE_KEY = 'openStreamPlayerFavorites';
 const PLAYLIST_TIMEOUT_MS = 30000;
 const EPG_TIMEOUT_MS = 20000;
+const JSON_TIMEOUT_MS = 30000;
+const PLAYER_HEADERS = {
+  'User-Agent': 'IPTVSmartersPro',
+  Accept: 'application/json,text/plain,*/*',
+};
 
 const initialLoadingProgress = {
   message: 'Preparing playlist request',
@@ -72,6 +77,23 @@ function App() {
     return cfg.m3uUrl || process.env.REACT_APP_M3U_URL;
   };
 
+  const getXtreamBaseUrl = (cfg) => (cfg?.xtreamServer || '').replace(/\/+$/, '');
+
+  const getXtreamApiUrl = (cfg, action = '') => {
+    const baseUrl = getXtreamBaseUrl(cfg);
+    const params = new URLSearchParams({
+      username: cfg.xtreamUser,
+      password: cfg.xtreamPass,
+    });
+
+    if (action) params.set('action', action);
+    return `${baseUrl}/player_api.php?${params.toString()}`;
+  };
+
+  const canUseXtreamApi = (cfg) => (
+    cfg?.configMode === 'xtream' && cfg.xtreamServer && cfg.xtreamUser && cfg.xtreamPass
+  );
+
   const getEpgUrl = (cfg) => {
     if (!cfg) cfg = config;
     if (!cfg) return process.env.REACT_APP_EPG_URL;
@@ -87,29 +109,23 @@ function App() {
       setLoading(true);
       setError(null);
       setLoadingProgress({
-        message: 'Connecting to playlist',
-        detail: 'Requesting your M3U channel list. Slow providers can take a few seconds.',
+        message: canUseXtreamApi(cfg || config) ? 'Connecting to Xtream API' : 'Connecting to playlist',
+        detail: canUseXtreamApi(cfg || config)
+          ? 'Requesting your provider catalog with player-compatible headers.'
+          : 'Requesting your M3U channel list. Slow providers can take a few seconds.',
         elapsedSeconds: 0,
         startedAt: Date.now(),
       });
-      const m3uUrl = getM3uUrl(cfg);
-      if (!m3uUrl) throw new Error('No M3U URL configured');
 
-      let m3uContent;
-
-      if (window.electronAPI) {
-        m3uContent = await window.electronAPI.fetchM3U(m3uUrl);
-      } else {
-        const response = await axios.get(m3uUrl, { timeout: PLAYLIST_TIMEOUT_MS });
-        m3uContent = response.data;
-      }
+      const parsed = canUseXtreamApi(cfg || config)
+        ? await fetchXtreamChannels(cfg || config)
+        : await fetchM3UChannels(cfg);
 
       setLoadingProgress((current) => ({
         ...current,
         message: 'Parsing channels',
         detail: 'Reading channel names, groups, logos, and stream URLs.',
       }));
-      const parsed = parseM3U(m3uContent);
       setChannels(parsed);
       if (parsed.length > 0) {
         setSelectedChannel((current) => {
@@ -129,6 +145,82 @@ function App() {
     } finally {
       setLoading(false);
     }
+  };
+
+  const fetchM3UChannels = async (cfg = null) => {
+    const m3uUrl = getM3uUrl(cfg);
+    if (!m3uUrl) throw new Error('No M3U URL configured');
+
+    let m3uContent;
+
+    if (window.electronAPI) {
+      m3uContent = await window.electronAPI.fetchM3U(m3uUrl);
+    } else {
+      const response = await axios.get(m3uUrl, {
+        timeout: PLAYLIST_TIMEOUT_MS,
+        headers: PLAYER_HEADERS,
+      });
+      m3uContent = response.data;
+    }
+
+    return parseM3U(m3uContent);
+  };
+
+  const fetchXtreamChannels = async (cfg) => {
+    setLoadingProgress((current) => ({
+      ...current,
+      message: 'Checking account',
+      detail: 'Verifying the provider login before loading streams.',
+    }));
+
+    const account = await fetchJSON(getXtreamApiUrl(cfg));
+    if (account?.user_info?.auth !== 1 && account?.user_info?.auth !== '1') {
+      throw new Error('Xtream login was rejected. Check your server, username, and password.');
+    }
+
+    setLoadingProgress((current) => ({
+      ...current,
+      message: 'Loading categories',
+      detail: 'Fetching channel groups from the provider catalog.',
+    }));
+    const categories = await fetchJSON(getXtreamApiUrl(cfg, 'get_live_categories'));
+    const categoryMap = new Map(
+      (Array.isArray(categories) ? categories : []).map((category) => [
+        String(category.category_id),
+        category.category_name || 'Other',
+      ])
+    );
+
+    setLoadingProgress((current) => ({
+      ...current,
+      message: 'Loading live channels',
+      detail: 'Downloading the live stream catalog. Large accounts can take several seconds.',
+    }));
+    const streams = await fetchJSON(getXtreamApiUrl(cfg, 'get_live_streams'));
+    if (!Array.isArray(streams)) throw new Error('Provider did not return a valid live channel list.');
+
+    const baseUrl = getXtreamBaseUrl(cfg);
+    return streams
+      .filter((stream) => stream.stream_id && stream.name)
+      .map((stream) => {
+        const extension = stream.container_extension || 'ts';
+        return {
+          name: stream.name,
+          logo: stream.stream_icon || '',
+          group: categoryMap.get(String(stream.category_id)) || 'Other',
+          url: `${baseUrl}/live/${cfg.xtreamUser}/${cfg.xtreamPass}/${stream.stream_id}.${extension}`,
+        };
+      });
+  };
+
+  const fetchJSON = async (url) => {
+    if (window.electronAPI?.fetchJSON) return window.electronAPI.fetchJSON(url);
+
+    const response = await axios.get(url, {
+      timeout: JSON_TIMEOUT_MS,
+      headers: PLAYER_HEADERS,
+    });
+    return response.data;
   };
 
   const fetchEPG = async (cfg = null) => {

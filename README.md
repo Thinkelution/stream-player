@@ -6,6 +6,7 @@ OpenStreamPlayer is a native Electron app for streaming M3U8/IPTV content with E
 
 - 🎬 Play M3U8 playlists and IPTV streams
 - 📺 EPG/Electronic Program Guide integration
+- ⚡ Xtream API loading for providers with slow M3U exports
 - 🔍 Search, filter, and favorite channels
 - 📱 Responsive modern interface with loading and empty states
 - 🚀 Native desktop app using Electron
@@ -69,10 +70,10 @@ embedded. Configure your source in the app's Settings after installing.
 Before uploading the new version, mount its final DMG and verify the app inside:
 
 ```bash
-hdiutil attach -nobrowse -readonly dist/OpenStreamPlayer-0.1.3-arm64.dmg
-codesign --verify --deep --strict --verbose=2 "/Volumes/OpenStreamPlayer 0.1.3-arm64/OpenStreamPlayer.app"
-hdiutil detach "/Volumes/OpenStreamPlayer 0.1.3-arm64"
-shasum -a 256 dist/OpenStreamPlayer-0.1.3-arm64.dmg
+hdiutil attach -nobrowse -readonly dist/OpenStreamPlayer-0.1.4-arm64.dmg
+codesign --verify --deep --strict --verbose=2 "/Volumes/OpenStreamPlayer 0.1.4-arm64/OpenStreamPlayer.app"
+hdiutil detach "/Volumes/OpenStreamPlayer 0.1.4-arm64"
+shasum -a 256 dist/OpenStreamPlayer-0.1.4-arm64.dmg
 ```
 
 Publish the DMG under the matching GitHub release tag, then update the version and

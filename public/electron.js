@@ -5,6 +5,12 @@ const axios = require('axios');
 
 const PLAYLIST_TIMEOUT_MS = 30000;
 const EPG_TIMEOUT_MS = 20000;
+const JSON_TIMEOUT_MS = 30000;
+
+const playerHeaders = {
+  'User-Agent': 'IPTVSmartersPro',
+  Accept: 'application/json,text/plain,*/*',
+};
 
 let mainWindow;
 
@@ -44,7 +50,7 @@ app.on('activate', () => {
 
 ipcMain.handle('fetch-m3u', async (event, url) => {
   try {
-    const response = await axios.get(url, { timeout: PLAYLIST_TIMEOUT_MS });
+    const response = await axios.get(url, { timeout: PLAYLIST_TIMEOUT_MS, headers: playerHeaders });
     return response.data;
   } catch (error) {
     console.error('Error fetching M3U:', error);
@@ -54,10 +60,20 @@ ipcMain.handle('fetch-m3u', async (event, url) => {
 
 ipcMain.handle('fetch-epg', async (event, url) => {
   try {
-    const response = await axios.get(url, { timeout: EPG_TIMEOUT_MS });
+    const response = await axios.get(url, { timeout: EPG_TIMEOUT_MS, headers: playerHeaders });
     return response.data;
   } catch (error) {
     console.error('Error fetching EPG:', error);
+    throw error;
+  }
+});
+
+ipcMain.handle('fetch-json', async (event, url) => {
+  try {
+    const response = await axios.get(url, { timeout: JSON_TIMEOUT_MS, headers: playerHeaders });
+    return response.data;
+  } catch (error) {
+    console.error('Error fetching JSON:', error);
     throw error;
   }
 });
