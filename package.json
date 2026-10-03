@@ -1,6 +1,6 @@
 {
   "name": "stream-player",
-  "version": "0.1.8",
+  "version": "0.1.9",
   "description": "OpenStreamPlayer IPTV player with M3U, Xtream, favorites, and EPG support",
   "main": "public/electron.js",
   "homepage": "./",

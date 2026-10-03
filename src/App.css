@@ -440,18 +440,17 @@ button {
 }
 
 .channels {
-  display: flex;
   flex: 1;
-  flex-direction: column;
-  gap: 0.5rem;
   min-height: 0;
   overflow-y: auto;
   padding-right: 0.1rem;
 }
 
 .channel-item {
+  display: flex;
   gap: 0.7rem;
-  min-height: 3.35rem;
+  height: 3.35rem;
+  margin-bottom: 0.5rem;
   padding: 0.48rem;
   border: 1px solid transparent;
   border-radius: 0.85rem;
