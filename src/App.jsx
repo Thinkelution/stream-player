@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import axios from 'axios';
 import './App.css';
 import ChannelList from './components/ChannelList';
 import VideoPlayer from './components/VideoPlayer';
@@ -20,7 +21,15 @@ function App() {
     try {
       setLoading(true);
       const m3uUrl = process.env.REACT_APP_M3U_URL;
-      const m3uContent = await window.electronAPI.fetchM3U(m3uUrl);
+      let m3uContent;
+
+      if (window.electronAPI) {
+        m3uContent = await window.electronAPI.fetchM3U(m3uUrl);
+      } else {
+        const response = await axios.get(m3uUrl);
+        m3uContent = response.data;
+      }
+
       const parsed = parseM3U(m3uContent);
       setChannels(parsed);
       if (parsed.length > 0) setSelectedChannel(parsed[0]);
@@ -36,7 +45,15 @@ function App() {
   const fetchEPG = async () => {
     try {
       const epgUrl = process.env.REACT_APP_EPG_URL;
-      const epgContent = await window.electronAPI.fetchEPG(epgUrl);
+      let epgContent;
+
+      if (window.electronAPI) {
+        epgContent = await window.electronAPI.fetchEPG(epgUrl);
+      } else {
+        const response = await axios.get(epgUrl);
+        epgContent = response.data;
+      }
+
       const parsed = parseEPG(epgContent);
       setEpgData(parsed);
     } catch (err) {
