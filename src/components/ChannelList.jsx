@@ -57,6 +57,11 @@ function ChannelList({ channels, selectedChannel, onSelect, favorites, onToggleF
 
 
   useEffect(() => {
+    if (!groups.includes(selectedGroup)) setSelectedGroup('All');
+  }, [groups, selectedGroup]);
+
+
+  useEffect(() => {
     const typePrefix = selectedType === 'all' ? '' : `${typeLabel(selectedType)} · `;
     const groupName = selectedGroup === 'All' ? 'All channels' : selectedGroup;
     onVisibleChannelsChange?.(filtered, `${typePrefix}${groupName}`);

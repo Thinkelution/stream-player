@@ -3,5 +3,5 @@ const { contextBridge, ipcRenderer } = require('electron');
 contextBridge.exposeInMainWorld('electronAPI', {
   fetchM3U: (url) => ipcRenderer.invoke('fetch-m3u', url),
   fetchEPG: (url) => ipcRenderer.invoke('fetch-epg', url),
-  fetchJSON: (url) => ipcRenderer.invoke('fetch-json', url),
+  fetchJSON: (url, options = {}) => ipcRenderer.invoke('fetch-json', url, options),
 });

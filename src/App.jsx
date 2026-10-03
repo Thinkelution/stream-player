@@ -15,9 +15,9 @@ const DEFAULT_CONFIG = {
   epgUrl: DEFAULT_EPG_URL,
   fontSize: 'compact',
 };
-const PLAYLIST_TIMEOUT_MS = 30000;
+const PLAYLIST_TIMEOUT_MS = 60000;
 const EPG_TIMEOUT_MS = 20000;
-const JSON_TIMEOUT_MS = 30000;
+const JSON_TIMEOUT_MS = 60000;
 const PLAYER_HEADERS = {
   'User-Agent': 'IPTVSmartersPro',
   Accept: 'application/json,text/plain,*/*',
@@ -358,7 +358,23 @@ function App() {
         url: '',
       }));
 
-    return [...liveItems, ...movieItems, ...seriesItems];
+    const apiItems = [...liveItems, ...movieItems, ...seriesItems];
+
+    if (liveItems.length > 0 && movieItems.length === 0 && seriesItems.length === 0) {
+      try {
+        setLoadingProgress((current) => ({
+          ...current,
+          message: 'Loading full playlist fallback',
+          detail: 'The Xtream catalog returned live channels only, so OpenStreamPlayer is loading the full M3U to recover movies and series.',
+        }));
+        const playlistItems = await fetchM3UChannels(cfg);
+        if (playlistItems.length > apiItems.length) return playlistItems;
+      } catch (fallbackErr) {
+        console.warn('Full Xtream playlist fallback failed:', fallbackErr);
+      }
+    }
+
+    return apiItems;
   };
 
   const resolvePlayableChannel = async (channel, cfg = config) => {
@@ -469,11 +485,18 @@ function App() {
 
   const stripChannelPrefix = (name) => String(name || '').replace(/^\s*[A-Z]{2,4}\s*[-|]\s*/i, '').trim();
 
-  const fetchJSON = async (url) => {
-    if (window.electronAPI?.fetchJSON) return window.electronAPI.fetchJSON(url);
+  const inferContentTypeFromUrl = (url, group = '') => {
+    const source = `${url || ''} ${group || ''}`.toLowerCase();
+    if (/\/series\//.test(source) || /\bseries\b/.test(source)) return 'series';
+    if (/\/movie\//.test(source) || /\b(?:movie|movies|vod|film|films)\b/.test(source)) return 'movie';
+    return 'live';
+  };
+
+  const fetchJSON = async (url, timeoutMs = JSON_TIMEOUT_MS) => {
+    if (window.electronAPI?.fetchJSON) return window.electronAPI.fetchJSON(url, { timeout: timeoutMs });
 
     const response = await axios.get(url, {
-      timeout: JSON_TIMEOUT_MS,
+      timeout: timeoutMs,
       headers: PLAYER_HEADERS,
     });
     return response.data;
@@ -598,6 +621,7 @@ function App() {
         };
       } else if (line && !line.startsWith('#') && currentChannel) {
         currentChannel.url = line;
+        currentChannel.contentType = inferContentTypeFromUrl(line, currentChannel.group);
         channels.push(currentChannel);
         currentChannel = null;
       }

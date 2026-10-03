@@ -3,9 +3,9 @@ const path = require('path');
 const isDev = require('electron-is-dev');
 const axios = require('axios');
 
-const PLAYLIST_TIMEOUT_MS = 30000;
+const PLAYLIST_TIMEOUT_MS = 60000;
 const EPG_TIMEOUT_MS = 20000;
-const JSON_TIMEOUT_MS = 30000;
+const JSON_TIMEOUT_MS = 60000;
 
 const playerHeaders = {
   'User-Agent': 'IPTVSmartersPro',
@@ -68,9 +68,9 @@ ipcMain.handle('fetch-epg', async (event, url) => {
   }
 });
 
-ipcMain.handle('fetch-json', async (event, url) => {
+ipcMain.handle('fetch-json', async (event, url, options = {}) => {
   try {
-    const response = await axios.get(url, { timeout: JSON_TIMEOUT_MS, headers: playerHeaders });
+    const response = await axios.get(url, { timeout: options.timeout || JSON_TIMEOUT_MS, headers: playerHeaders });
     return response.data;
   } catch (error) {
     console.error('Error fetching JSON:', error);
