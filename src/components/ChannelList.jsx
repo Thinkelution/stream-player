@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useDeferredValue, useEffect, useCallback } from 'react';
+import React, { useState, useMemo, useEffect, useCallback, useRef } from 'react';
 
 const ROW_HEIGHT = 50;
 const OVERSCAN = 8;
@@ -15,7 +15,7 @@ function ChannelList({ channels, selectedChannel, onSelect, favorites, onToggleF
   const [viewportHeight, setViewportHeight] = useState(0);
   const [selectedGroup, setSelectedGroup] = useState('All');
   const [selectedType, setSelectedType] = useState('all');
-  const deferredSearchTerm = useDeferredValue(searchTerm);
+  const channelsRef = useRef(null);
 
   const getChannelKey = useCallback((channel) => `${channel.name}|${channel.group}|${channel.contentType || 'live'}|${channel.streamId || channel.seriesId || channel.url}`, []);
   const getKeysForFavorite = useCallback((channel) => getFavoriteKeys?.(channel) || [getChannelKey(channel), `${channel.name}|${channel.group}|${channel.url}`], [getFavoriteKeys, getChannelKey]);
@@ -34,26 +34,27 @@ function ChannelList({ channels, selectedChannel, onSelect, favorites, onToggleF
     return channels.map((channel) => ({
       channel,
       key: getChannelKey(channel),
-      searchName: channel.name.toLowerCase(),
+      searchText: [channel.name, channel.group, channel.contentType || 'live'].filter(Boolean).join(' ').toLowerCase(),
     }));
   }, [channels, getChannelKey]);
 
   const filtered = useMemo(() => {
-    const normalizedSearch = deferredSearchTerm.trim().toLowerCase();
+    const terms = searchTerm.trim().toLowerCase().split(/\s+/).filter(Boolean);
 
-    return indexedChannels.filter(({ channel: ch, key, searchName }) => {
-      const matchesSearch = !normalizedSearch || searchName.includes(normalizedSearch);
+    return indexedChannels.filter(({ channel: ch, key, searchText }) => {
+      const matchesSearch = terms.length === 0 || terms.every((term) => searchText.includes(term));
       const matchesType = selectedType === 'all' || (ch.contentType || 'live') === selectedType;
       const matchesGroup = selectedGroup === 'All'
         || (selectedGroup === 'Favorites' && getKeysForFavorite(ch).some((favoriteKey) => favoriteSet.has(favoriteKey)))
         || ch.group === selectedGroup;
       return matchesSearch && matchesType && matchesGroup;
     }).map(({ channel }) => channel);
-  }, [indexedChannels, deferredSearchTerm, selectedGroup, selectedType, favoriteSet, getKeysForFavorite]);
+  }, [indexedChannels, searchTerm, selectedGroup, selectedType, favoriteSet, getKeysForFavorite]);
 
   useEffect(() => {
     setScrollTop(0);
-  }, [deferredSearchTerm, selectedGroup, selectedType]);
+    if (channelsRef.current) channelsRef.current.scrollTop = 0;
+  }, [searchTerm, selectedGroup, selectedType]);
 
 
   useEffect(() => {
@@ -149,6 +150,7 @@ function ChannelList({ channels, selectedChannel, onSelect, favorites, onToggleF
         className="channels"
         onScroll={(event) => setScrollTop(event.currentTarget.scrollTop)}
         ref={(node) => {
+          channelsRef.current = node;
           if (node && node.clientHeight !== viewportHeight) setViewportHeight(node.clientHeight);
         }}
       >
