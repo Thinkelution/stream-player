@@ -7,11 +7,10 @@ import EPGGuide from './components/EPGGuide';
 import Settings from './components/Settings';
 
 const FAVORITES_STORAGE_KEY = 'openStreamPlayerFavorites';
-const DEFAULT_M3U_URL = 'https://iptv-org.github.io/iptv/index.m3u';
 const DEFAULT_EPG_URL = '';
 const DEFAULT_CONFIG = {
   configMode: 'm3u',
-  m3uUrl: DEFAULT_M3U_URL,
+  m3uUrl: '',
   epgUrl: DEFAULT_EPG_URL,
   fontSize: 'compact',
 };
@@ -134,6 +133,12 @@ function App() {
     [selectedChannel, epgData]
   );
 
+  const getCurrentProgramTitleForChannel = useCallback((channel) => {
+    if ((channel?.contentType || 'live') !== 'live') return '';
+    const currentProgram = getCurrentProgramsForChannel(channel, epgData, 1)[0];
+    return currentProgram?.label === 'Now' ? currentProgram.title : '';
+  }, [epgData]);
+
   const handleVisibleChannelsChange = useCallback((visibleChannels, label) => {
     setActiveChannels(visibleChannels);
     setActiveChannelListLabel(label || 'Channels');
@@ -144,6 +149,12 @@ function App() {
       const stored = localStorage.getItem('streamPlayerConfig');
       const startupConfig = stored ? JSON.parse(stored) : config;
       if (stored) setConfig(startupConfig);
+
+      if (!hasConfiguredSource(startupConfig)) {
+        setLoading(false);
+        setError(null);
+        return;
+      }
 
       const cachedChannels = await loadCachedPlaylist(startupConfig);
       if (cachedChannels?.length) {
@@ -161,8 +172,12 @@ function App() {
 
     boot().catch((err) => {
       console.error(err);
-      fetchPlaylist(config, { manual: false });
-      fetchEPG(config);
+      if (hasConfiguredSource(config)) {
+        fetchPlaylist(config, { manual: false });
+        fetchEPG(config);
+      } else {
+        setLoading(false);
+      }
     });
     // Load saved configuration once on startup; settings saves and Refresh force their own reload.
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -192,14 +207,23 @@ function App() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedChannel, config]);
 
+
+  const hasConfiguredSource = (cfg = config) => {
+    if (!cfg) return Boolean(process.env.REACT_APP_M3U_URL);
+    if (cfg.configMode === 'xtream') {
+      return Boolean(cfg.xtreamServer && cfg.xtreamUser && cfg.xtreamPass);
+    }
+    return Boolean(cfg.m3uUrl || process.env.REACT_APP_M3U_URL);
+  };
+
   const getM3uUrl = (cfg) => {
     if (!cfg) cfg = config;
-    if (!cfg) return process.env.REACT_APP_M3U_URL || DEFAULT_M3U_URL;
+    if (!cfg) return process.env.REACT_APP_M3U_URL || '';
 
     if (cfg.configMode === 'xtream' && cfg.xtreamServer && cfg.xtreamUser && cfg.xtreamPass) {
       return `${cfg.xtreamServer}/get.php?username=${cfg.xtreamUser}&password=${cfg.xtreamPass}&type=m3u_plus&output=mpegts`;
     }
-    return cfg.m3uUrl || process.env.REACT_APP_M3U_URL || DEFAULT_M3U_URL;
+    return cfg.m3uUrl || process.env.REACT_APP_M3U_URL || '';
   };
 
   const getXtreamBaseUrl = (cfg) => (cfg?.xtreamServer || '').replace(/\/+$/, '');
@@ -772,9 +796,13 @@ function App() {
           <button onClick={() => setSettingsOpen(true)} className="btn btn-secondary">
             Settings
           </button>
-          <button onClick={() => fetchPlaylist(config, { manual: true })} disabled={loading} className="btn btn-primary">
+          <button
+            onClick={() => (hasConfiguredSource(config) ? fetchPlaylist(config, { manual: true }) : setSettingsOpen(true))}
+            disabled={loading}
+            className="btn btn-primary"
+          >
             {loading ? <span className="mini-spinner" /> : null}
-            {loading ? 'Loading' : 'Refresh'}
+            {loading ? 'Loading' : hasConfiguredSource(config) ? 'Refresh' : 'Add Playlist'}
           </button>
         </div>
       </header>
@@ -831,11 +859,13 @@ function App() {
               <h2>{error ? 'Playlist did not load' : 'Add a playlist to start watching'}</h2>
               <p>{error || 'Open Settings, add your M3U or Xtream details, and your channels will appear here.'}</p>
               <div className="state-actions">
-                <button className="btn btn-primary" onClick={() => fetchPlaylist(config, { manual: true })}>
-                  Try Again
-                </button>
-                <button className="btn btn-secondary" onClick={() => setSettingsOpen(true)}>
-                  Open Settings
+                {hasConfiguredSource(config) ? (
+                  <button className="btn btn-primary" onClick={() => fetchPlaylist(config, { manual: true })}>
+                    Try Again
+                  </button>
+                ) : null}
+                <button className="btn btn-primary" onClick={() => setSettingsOpen(true)}>
+                  Add Playlist
                 </button>
               </div>
             </div>
@@ -851,6 +881,7 @@ function App() {
             onToggleFavorite={toggleFavorite}
             loading={loading}
             getFavoriteKeys={getFavoriteKeys}
+            getCurrentProgramTitle={getCurrentProgramTitleForChannel}
             onVisibleChannelsChange={handleVisibleChannelsChange}
           />
         </aside>

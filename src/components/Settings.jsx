@@ -9,7 +9,7 @@ function Settings({ isOpen, onClose, onSave }) {
   const [xtreamServer, setXtreamServer] = useState('');
   const [xtreamUser, setXtreamUser] = useState('');
   const [xtreamPass, setXtreamPass] = useState('');
-  const [m3uUrl, setM3uUrl] = useState(DEFAULT_M3U_URL);
+  const [m3uUrl, setM3uUrl] = useState('');
   const [epgUrl, setEpgUrl] = useState(DEFAULT_EPG_URL);
   const [fontSize, setFontSize] = useState('compact');
   const [saving, setSaving] = useState(false);
@@ -22,12 +22,12 @@ function Settings({ isOpen, onClose, onSave }) {
       setXtreamServer(config.xtreamServer || '');
       setXtreamUser(config.xtreamUser || '');
       setXtreamPass(config.xtreamPass || '');
-      setM3uUrl(config.m3uUrl || DEFAULT_M3U_URL);
+      setM3uUrl(config.m3uUrl || '');
       setEpgUrl(config.epgUrl || DEFAULT_EPG_URL);
       setFontSize(config.fontSize || 'compact');
     } else {
       setConfigMode('m3u');
-      setM3uUrl(DEFAULT_M3U_URL);
+      setM3uUrl('');
       setEpgUrl(DEFAULT_EPG_URL);
       setFontSize('compact');
     }
@@ -127,10 +127,13 @@ function Settings({ isOpen, onClose, onSave }) {
                 <label>M3U Playlist URL</label>
                 <input
                   type="text"
-                  placeholder="https://iptv-org.github.io/iptv/index.m3u"
+                  placeholder={DEFAULT_M3U_URL}
                   value={m3uUrl}
                   onChange={(e) => setM3uUrl(e.target.value)}
                 />
+              </div>
+              <div className="info-text">
+                The placeholder is the public sample playlist from <a href="https://github.com/iptv-org/iptv" target="_blank" rel="noreferrer">iptv-org on GitHub</a>. Paste your own playlist URL, or use that URL if you want their public sample list.
               </div>
             </div>
           )}

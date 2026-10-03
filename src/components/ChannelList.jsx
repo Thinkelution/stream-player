@@ -1,6 +1,6 @@
 import React, { useState, useMemo, useEffect, useCallback, useRef } from 'react';
 
-const ROW_HEIGHT = 50;
+const ROW_HEIGHT = 58;
 const OVERSCAN = 8;
 
 const typeLabel = (type) => {
@@ -9,7 +9,7 @@ const typeLabel = (type) => {
   return 'Live';
 };
 
-function ChannelList({ channels, selectedChannel, onSelect, favorites, onToggleFavorite, loading, getFavoriteKeys, onVisibleChannelsChange }) {
+function ChannelList({ channels, selectedChannel, onSelect, favorites, onToggleFavorite, loading, getFavoriteKeys, getCurrentProgramTitle, onVisibleChannelsChange }) {
   const [searchTerm, setSearchTerm] = useState('');
   const [scrollTop, setScrollTop] = useState(0);
   const [viewportHeight, setViewportHeight] = useState(0);
@@ -163,7 +163,9 @@ function ChannelList({ channels, selectedChannel, onSelect, favorites, onToggleF
         ) : filtered.length > 0 ? (
           <>
             {virtualRows.topPad > 0 && <div style={{ height: virtualRows.topPad }} />}
-            {virtualRows.rows.map((channel) => (
+            {virtualRows.rows.map((channel) => {
+              const currentProgramTitle = getCurrentProgramTitle?.(channel) || '';
+              return (
               <div
                 key={getChannelKey(channel)}
                 className={`channel-item ${selectedChannel && getChannelKey(selectedChannel) === getChannelKey(channel) ? 'active' : ''}`}
@@ -175,6 +177,7 @@ function ChannelList({ channels, selectedChannel, onSelect, favorites, onToggleF
                 <div className="channel-copy">
                   <span className="channel-name">{channel.name}</span>
                   <span className="channel-group"><b>{typeLabel(channel.contentType)}</b> · {channel.group}</span>
+                  {currentProgramTitle && <span className="channel-program">{currentProgramTitle}</span>}
                 </div>
                 <button
                   className={`favorite-btn ${isFavorite(channel) ? 'active' : ''}`}
@@ -188,7 +191,8 @@ function ChannelList({ channels, selectedChannel, onSelect, favorites, onToggleF
                   {isFavorite(channel) ? '★' : '☆'}
                 </button>
               </div>
-            ))}
+              );
+            })}
             {virtualRows.bottomPad > 0 && <div style={{ height: virtualRows.bottomPad }} />}
           </>
         ) : (

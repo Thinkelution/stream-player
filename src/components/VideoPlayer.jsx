@@ -126,7 +126,9 @@ function VideoPlayer({ channel, channels = [], channelListLabel = 'Channels', fu
 
     if (!isFullscreen) return;
     const rect = event.currentTarget.getBoundingClientRect();
-    if (rect.right - event.clientX <= 120) showChannelDrawerTemporarily();
+    const isInRightEdge = rect.right - event.clientX <= 120;
+    const isAboveControlBar = rect.bottom - event.clientY > 92;
+    if (isInRightEdge && isAboveControlBar) showChannelDrawerTemporarily();
   }, [isFullscreen, showChannelDrawerTemporarily, showControlsTemporarily]);
 
   const keepChannelDrawerOpen = useCallback(() => {
@@ -444,16 +446,22 @@ function VideoPlayer({ channel, channels = [], channelListLabel = 'Channels', fu
               ⏹
             </button>
           </div>
-          {fullscreenPrograms.length > 0 && (
-            <div className="fullscreen-control-guide" aria-label="Current guide">
-              {fullscreenPrograms.map((program, index) => (
-                <div key={`${program.label}-${program.title}-${index}`} className="fullscreen-guide-item">
-                  <span>{program.label}</span>
-                  <strong>{program.title}</strong>
-                </div>
-              ))}
+          <div className="fullscreen-control-guide" aria-label="Current channel and guide">
+            <div className="fullscreen-channel-context">
+              <strong>{channel.name}</strong>
+              <span>{channel.episodeTitle || channel.group}</span>
             </div>
-          )}
+            {fullscreenPrograms.length > 0 && (
+              <div className="fullscreen-guide-strip">
+                {fullscreenPrograms.map((program, index) => (
+                  <div key={`${program.label}-${program.title}-${index}`} className="fullscreen-guide-item">
+                    <span>{program.label}</span>
+                    <strong>{program.title}</strong>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
           <div className="control-right">
             <select className="control-select" value={selectedLevel} onChange={changeLevel} title="Bitrate / quality" aria-label="Bitrate / quality">
               <option value={-1}>Auto</option>

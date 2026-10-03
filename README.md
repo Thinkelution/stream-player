@@ -80,7 +80,7 @@ then requires `codesign --verify --deep --strict` to pass before packaging. It u
 an available Developer ID identity, otherwise an ad-hoc identity. Ad-hoc releases
 still need the first-launch approval above. Signing alone does not notarize an app.
 
-Release builds prefill Settings with the public [iptv-org](https://github.com/iptv-org/iptv) playlist URL so first launch has an open sample source. EPG remains optional because public guide URLs vary by source. Configure your own legal playlist, XMLTV guide, or Xtream source in Settings for everyday use.
+Release builds start without a configured playlist and show an add-playlist prompt on first launch. Settings shows the public [iptv-org](https://github.com/iptv-org/iptv) playlist URL only as an M3U placeholder/example. Existing saved playlists and cached channels are kept across reinstall because they live in the user's app data, not inside the app bundle. EPG remains optional because guide URLs vary by source. Configure your own legal playlist, XMLTV guide, or Xtream source in Settings for everyday use.
 
 Before uploading the new version, mount its final DMG and verify the app inside:
 
@@ -149,4 +149,4 @@ MIT
 
 ## Privacy
 
-This application connects to your configured IPTV provider or playlist URL. Ensure you have the appropriate rights to access streams. The default public playlist is provided by the [iptv-org](https://github.com/iptv-org/iptv) community project; check their repository for their terms, sources, and contribution guidelines. If you use public XMLTV data, review the [iptv-org EPG](https://github.com/iptv-org/epg) project as well.
+This application connects only to the IPTV provider or playlist URL you configure. Ensure you have the appropriate rights to access streams. Settings includes the public [iptv-org](https://github.com/iptv-org/iptv) playlist URL as an example placeholder; check their repository for their terms, sources, and contribution guidelines before using it. If you use public XMLTV data, review the [iptv-org EPG](https://github.com/iptv-org/epg) project as well.
