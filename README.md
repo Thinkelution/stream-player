@@ -1,13 +1,13 @@
-# StreamPlayer
+# OpenStreamPlayer
 
-An open-source native Electron app for streaming M3U8/IPTV content with EPG (Electronic Program Guide) support. Works on macOS and Windows.
+OpenStreamPlayer is a native Electron app for streaming M3U8/IPTV content with EPG (Electronic Program Guide), favorites, and responsive channel browsing. Works on macOS and Windows.
 
 ## Features
 
 - 🎬 Play M3U8 playlists and IPTV streams
 - 📺 EPG/Electronic Program Guide integration
-- 🔍 Search and filter channels by name or group
-- 📱 Responsive design with dark theme
+- 🔍 Search, filter, and favorite channels
+- 📱 Responsive modern interface with loading and empty states
 - 🚀 Native desktop app using Electron
 - 💻 Cross-platform (macOS, Windows, Linux)
 
@@ -20,9 +20,9 @@ brew tap thinkelution/tap
 brew install --cask thinkelution/tap/stream-player
 ```
 
-The current macOS release supports Apple Silicon. StreamPlayer is installed in
-`/Applications/StreamPlayer.app` and can be opened from Applications or with
-`open -a StreamPlayer`.
+The current macOS release supports Apple Silicon. OpenStreamPlayer is installed
+in `/Applications/OpenStreamPlayer.app` and can be opened from Applications or
+with `open -a OpenStreamPlayer`.
 
 ### First launch on macOS
 
@@ -38,9 +38,9 @@ only this installed app from Terminal. First verify the bundle; do not continue
 if verification fails:
 
 ```bash
-codesign --verify --deep --strict /Applications/StreamPlayer.app && \
-  xattr -dr com.apple.quarantine /Applications/StreamPlayer.app
-open -a StreamPlayer
+codesign --verify --deep --strict /Applications/OpenStreamPlayer.app && \
+  xattr -dr com.apple.quarantine /Applications/OpenStreamPlayer.app
+open -a OpenStreamPlayer
 ```
 
 Removing quarantine skips Gatekeeper's first-launch check for this copy of the
@@ -69,10 +69,10 @@ embedded. Configure your source in the app's Settings after installing.
 Before uploading the new version, mount its final DMG and verify the app inside:
 
 ```bash
-hdiutil attach -nobrowse -readonly dist/StreamPlayer-0.1.1-arm64.dmg
-codesign --verify --deep --strict --verbose=2 "/Volumes/StreamPlayer 0.1.1-arm64/StreamPlayer.app"
-hdiutil detach "/Volumes/StreamPlayer 0.1.1-arm64"
-shasum -a 256 dist/StreamPlayer-0.1.1-arm64.dmg
+hdiutil attach -nobrowse -readonly dist/OpenStreamPlayer-0.1.2-arm64.dmg
+codesign --verify --deep --strict --verbose=2 "/Volumes/OpenStreamPlayer 0.1.2-arm64/OpenStreamPlayer.app"
+hdiutil detach "/Volumes/OpenStreamPlayer 0.1.2-arm64"
+shasum -a 256 dist/OpenStreamPlayer-0.1.2-arm64.dmg
 ```
 
 Publish the DMG under the matching GitHub release tag, then update the version and
@@ -124,7 +124,7 @@ npm run build
 1. **M3U Playlist Parsing**: Fetches and parses M3U playlist format with channel metadata
 2. **HLS Streaming**: Uses HLS.js for adaptive bitrate streaming
 3. **EPG Integration**: Fetches and displays program guide data in XMLTV format
-4. **Channel Management**: Search, filter, and organize channels by category
+4. **Channel Management**: Search, filter, favorite, and organize channels by category
 
 ## License
 

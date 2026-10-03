@@ -1,7 +1,7 @@
 {
   "name": "stream-player",
-  "version": "0.1.1",
-  "description": "Open-source M3U8/IPTV player with EPG support",
+  "version": "0.1.2",
+  "description": "OpenStreamPlayer IPTV player with M3U, Xtream, favorites, and EPG support",
   "main": "public/electron.js",
   "homepage": "./",
   "dependencies": {
@@ -46,8 +46,8 @@
     ]
   },
   "build": {
-    "appId": "com.streamplayer.app",
-    "productName": "StreamPlayer",
+    "appId": "com.openstreamplayer.app",
+    "productName": "OpenStreamPlayer",
     "files": [
       "build/**/*",
       "public/electron.js",

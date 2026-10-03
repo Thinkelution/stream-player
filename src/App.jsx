@@ -6,14 +6,24 @@ import VideoPlayer from './components/VideoPlayer';
 import EPGGuide from './components/EPGGuide';
 import Settings from './components/Settings';
 
+const FAVORITES_STORAGE_KEY = 'openStreamPlayerFavorites';
+
 function App() {
   const [channels, setChannels] = useState([]);
   const [selectedChannel, setSelectedChannel] = useState(null);
   const [epgData, setEpgData] = useState({});
   const [loading, setLoading] = useState(true);
+  const [epgLoading, setEpgLoading] = useState(false);
   const [error, setError] = useState(null);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [config, setConfig] = useState(null);
+  const [favorites, setFavorites] = useState(() => {
+    try {
+      return JSON.parse(localStorage.getItem(FAVORITES_STORAGE_KEY) || '[]');
+    } catch (err) {
+      return [];
+    }
+  });
 
   useEffect(() => {
     const stored = localStorage.getItem('streamPlayerConfig');
@@ -25,6 +35,8 @@ function App() {
       fetchPlaylist();
       fetchEPG();
     }
+    // Load saved configuration once on startup; settings saves trigger their own refresh.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const getM3uUrl = (cfg) => {
@@ -64,7 +76,17 @@ function App() {
 
       const parsed = parseM3U(m3uContent);
       setChannels(parsed);
-      if (parsed.length > 0) setSelectedChannel(parsed[0]);
+      if (parsed.length > 0) {
+        setSelectedChannel((current) => {
+          if (current) {
+            const match = parsed.find((channel) => getChannelKey(channel) === getChannelKey(current));
+            if (match) return match;
+          }
+          return parsed[0];
+        });
+      } else {
+        setSelectedChannel(null);
+      }
       setError(null);
     } catch (err) {
       setError('Failed to load playlist: ' + err.message);
@@ -76,6 +98,7 @@ function App() {
 
   const fetchEPG = async (cfg = null) => {
     try {
+      setEpgLoading(true);
       const epgUrl = getEpgUrl(cfg);
       if (!epgUrl) {
         console.log('No EPG URL configured');
@@ -95,7 +118,27 @@ function App() {
       setEpgData(parsed);
     } catch (err) {
       console.error('Failed to load EPG:', err);
+    } finally {
+      setEpgLoading(false);
     }
+  };
+
+  const getChannelKey = (channel) => `${channel.name}|${channel.group}|${channel.url}`;
+
+  const isFavorite = (channel) => channel && favorites.includes(getChannelKey(channel));
+
+  const toggleFavorite = (channel) => {
+    if (!channel) return;
+
+    const key = getChannelKey(channel);
+    setFavorites((current) => {
+      const next = current.includes(key)
+        ? current.filter((favorite) => favorite !== key)
+        : [...current, key];
+
+      localStorage.setItem(FAVORITES_STORAGE_KEY, JSON.stringify(next));
+      return next;
+    });
   };
 
   const parseM3U = (content) => {
@@ -154,13 +197,20 @@ function App() {
   return (
     <div className="app">
       <header className="app-header">
-        <h1>StreamPlayer</h1>
+        <div className="brand-lockup">
+          <div className="brand-mark">OS</div>
+          <div>
+            <h1>OpenStreamPlayer</h1>
+            <p>{channels.length ? `${channels.length} channels loaded` : 'Open IPTV player'}</p>
+          </div>
+        </div>
         <div className="header-buttons">
-          <button onClick={() => setSettingsOpen(true)} className="btn-settings">
-            ⚙ Settings
+          <button onClick={() => setSettingsOpen(true)} className="btn btn-secondary">
+            Settings
           </button>
-          <button onClick={() => fetchPlaylist()} disabled={loading}>
-            {loading ? 'Loading...' : 'Refresh'}
+          <button onClick={() => fetchPlaylist()} disabled={loading} className="btn btn-primary">
+            {loading ? <span className="mini-spinner" /> : null}
+            {loading ? 'Loading' : 'Refresh'}
           </button>
         </div>
       </header>
@@ -180,11 +230,27 @@ function App() {
 
       <div className="app-container">
         <div className="player-section">
-          {selectedChannel && (
+          {loading && channels.length === 0 ? (
+            <div className="state-panel loading-panel">
+              <div className="spinner" />
+              <h2>Loading playlist</h2>
+              <p>Fetching channels and preparing your guide.</p>
+            </div>
+          ) : selectedChannel ? (
             <>
-              <VideoPlayer channel={selectedChannel} />
-              <EPGGuide channel={selectedChannel} epgData={epgData} />
+              <VideoPlayer
+                channel={selectedChannel}
+                isFavorite={isFavorite(selectedChannel)}
+                onToggleFavorite={() => toggleFavorite(selectedChannel)}
+              />
+              <EPGGuide channel={selectedChannel} epgData={epgData} loading={epgLoading} />
             </>
+          ) : (
+            <div className="state-panel empty-panel">
+              <h2>Add a playlist to start watching</h2>
+              <p>Open Settings, add your M3U or Xtream details, and your channels will appear here.</p>
+              <button className="btn btn-primary" onClick={() => setSettingsOpen(true)}>Open Settings</button>
+            </div>
           )}
         </div>
 
@@ -193,6 +259,9 @@ function App() {
             channels={channels}
             selectedChannel={selectedChannel}
             onSelect={setSelectedChannel}
+            favorites={favorites}
+            onToggleFavorite={toggleFavorite}
+            loading={loading}
           />
         </aside>
       </div>

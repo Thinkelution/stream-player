@@ -1,7 +1,6 @@
 import React, { useMemo } from 'react';
-import { formatDistanceToNow } from 'date-fns';
 
-function EPGGuide({ channel, epgData }) {
+function EPGGuide({ channel, epgData, loading }) {
   const currentPrograms = useMemo(() => {
     if (!channel || !epgData[channel.name]) return [];
 
@@ -19,8 +18,19 @@ function EPGGuide({ channel, epgData }) {
 
   return (
     <div className="epg-guide">
-      <h3>Now & Next</h3>
-      {currentPrograms.length > 0 ? (
+      <div className="section-title-row">
+        <div>
+          <span className="eyebrow">Guide</span>
+          <h3>Now & Next</h3>
+        </div>
+        {loading && <span className="mini-spinner" aria-label="Loading guide" />}
+      </div>
+      {loading && currentPrograms.length === 0 ? (
+        <div className="guide-loading">
+          <div className="skeleton-line" />
+          <div className="skeleton-line short" />
+        </div>
+      ) : currentPrograms.length > 0 ? (
         <div className="programs">
           {currentPrograms.map((prog, idx) => (
             <div key={idx} className="program">
