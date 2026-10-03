@@ -15,6 +15,29 @@ const PLAYER_HEADERS = {
   Accept: 'application/json,text/plain,*/*',
 };
 
+const normalizeGuideKey = (value) => String(value || '')
+  .toLowerCase()
+  .replace(/&amp;/g, '&')
+  .replace(/\b(?:fhd|uhd|hd|sd|hevc|4k|8k)\b/g, '')
+  .replace(/^[a-z]{2,4}\s*[-|]\s*/i, '')
+  .replace(/[^a-z0-9]+/g, '')
+  .trim();
+
+const uniqueValues = (values) => [...new Set(values.filter(Boolean))];
+
+const getGuideKeys = (channel) => {
+  if (!channel) return [];
+
+  const rawKeys = uniqueValues([
+    channel.epgId,
+    channel.name,
+    ...(channel.epgAliases || []),
+  ]);
+  const normalizedKeys = rawKeys.map(normalizeGuideKey);
+
+  return uniqueValues([...rawKeys, ...normalizedKeys]);
+};
+
 const initialLoadingProgress = {
   message: 'Preparing playlist request',
   detail: 'Checking your saved source and starting the connection.',
@@ -226,6 +249,12 @@ function App() {
           logo: stream.stream_icon || '',
           group: categoryMap.get(String(stream.category_id)) || 'Other',
           epgId: stream.epg_channel_id || stream.name,
+          epgAliases: uniqueValues([
+            stream.epg_channel_id,
+            stream.name,
+            stripChannelQuality(stream.name),
+            stripChannelPrefix(stripChannelQuality(stream.name)),
+          ]),
           streamId: stream.stream_id,
           url: `${baseUrl}/live/${cfg.xtreamUser}/${cfg.xtreamPass}/${stream.stream_id}.m3u8`,
         };
@@ -240,17 +269,18 @@ function App() {
         limit: 6,
       }));
       const listings = Array.isArray(response?.epg_listings) ? response.epg_listings : [];
+      if (!listings.length) return;
+
       const programs = listings.map((item) => ({
         start: item.start,
         stop: item.end,
         title: decodeBase64Text(item.title) || 'N/A',
         description: decodeBase64Text(item.description),
       }));
-      const key = channel.epgId || channel.name;
+      const guideKeys = getGuideKeys(channel);
       setEpgData((current) => ({
         ...current,
-        [key]: programs,
-        [channel.name]: programs,
+        ...Object.fromEntries(guideKeys.map((key) => [key, programs])),
       }));
     } catch (err) {
       console.error('Failed to load Xtream channel EPG:', err);
@@ -274,6 +304,13 @@ function App() {
   };
 
   const isXtreamDivider = (name) => /^\s*#{3,}.*#{3,}\s*$/.test(name);
+
+  const stripChannelQuality = (name) => String(name || '')
+    .replace(/\s*[([]?\b(?:FHD|UHD|HD|SD|HEVC|4K|8K)\b[)\]]?\s*$/i, '')
+    .replace(/\s+◉\s*$/u, '')
+    .trim();
+
+  const stripChannelPrefix = (name) => String(name || '').replace(/^\s*[A-Z]{2,4}\s*[-|]\s*/i, '').trim();
 
   const fetchJSON = async (url) => {
     if (window.electronAPI?.fetchJSON) return window.electronAPI.fetchJSON(url);
@@ -354,12 +391,15 @@ function App() {
         const nameMatch = line.match(/tvg-name="([^"]+)"/);
         const logoMatch = line.match(/tvg-logo="([^"]+)"/);
         const groupMatch = line.match(/group-title="([^"]+)"/);
+        const tvgIdMatch = line.match(/tvg-id="([^"]+)"/);
+        const name = nameMatch ? nameMatch[1] : (match ? match[1] : 'Unknown');
 
         currentChannel = {
-          name: nameMatch ? nameMatch[1] : (match ? match[1] : 'Unknown'),
+          name,
           logo: logoMatch ? logoMatch[1] : '',
           group: groupMatch ? groupMatch[1] : 'Other',
-          epgId: nameMatch ? nameMatch[1] : (match ? match[1] : 'Unknown'),
+          epgId: tvgIdMatch ? tvgIdMatch[1] : name,
+          epgAliases: uniqueValues([tvgIdMatch?.[1], name, stripChannelQuality(name), stripChannelPrefix(stripChannelQuality(name))]),
           url: '',
         };
       } else if (line && !line.startsWith('#') && currentChannel) {
@@ -375,6 +415,33 @@ function App() {
     const parser = new DOMParser();
     const xmlDoc = parser.parseFromString(xmlContent, 'text/xml');
     const epg = {};
+    const channelAliases = {};
+
+    xmlDoc.querySelectorAll('channel').forEach((channelElem) => {
+      const id = channelElem.getAttribute('id');
+      if (!id) return;
+
+      const displayNames = Array.from(channelElem.querySelectorAll('display-name'))
+        .map((displayName) => displayName.textContent?.trim())
+        .filter(Boolean);
+
+      channelAliases[id] = uniqueValues([
+        id,
+        normalizeGuideKey(id),
+        ...displayNames,
+        ...displayNames.map(stripChannelQuality),
+        ...displayNames.map((name) => stripChannelPrefix(stripChannelQuality(name))),
+        ...displayNames.map(normalizeGuideKey),
+      ]);
+    });
+
+    const addPrograms = (keys, program) => {
+      uniqueValues(keys).forEach((key) => {
+        if (!key) return;
+        if (!epg[key]) epg[key] = [];
+        epg[key].push(program);
+      });
+    };
 
     const programmes = xmlDoc.querySelectorAll('programme');
     programmes.forEach((prog) => {
@@ -384,13 +451,18 @@ function App() {
       const titleElem = prog.querySelector('title');
       const descElem = prog.querySelector('desc');
 
-      if (!epg[channel]) epg[channel] = [];
-      epg[channel].push({
+      const program = {
         start,
         stop,
         title: titleElem ? titleElem.textContent : 'N/A',
         description: descElem ? descElem.textContent : '',
-      });
+      };
+
+      addPrograms([
+        channel,
+        normalizeGuideKey(channel),
+        ...(channelAliases[channel] || []),
+      ], program);
     });
 
     return epg;

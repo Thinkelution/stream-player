@@ -1,5 +1,28 @@
 import React, { useMemo } from 'react';
 
+const normalizeGuideKey = (value) => String(value || '')
+  .toLowerCase()
+  .replace(/&amp;/g, '&')
+  .replace(/\b(?:fhd|uhd|hd|sd|hevc|4k|8k)\b/g, '')
+  .replace(/^[a-z]{2,4}\s*[-|]\s*/i, '')
+  .replace(/[^a-z0-9]+/g, '')
+  .trim();
+
+const uniqueValues = (values) => [...new Set(values.filter(Boolean))];
+
+const getGuideKeys = (channel) => {
+  if (!channel) return [];
+
+  const rawKeys = uniqueValues([
+    channel.epgId,
+    channel.name,
+    ...(channel.epgAliases || []),
+  ]);
+  const normalizedKeys = rawKeys.map(normalizeGuideKey);
+
+  return uniqueValues([...rawKeys, ...normalizedKeys]);
+};
+
 function EPGGuide({ channel, epgData, loading }) {
   const parseXmltvDate = (value) => {
     const raw = String(value || '');
@@ -22,8 +45,9 @@ function EPGGuide({ channel, epgData, loading }) {
   const currentPrograms = useMemo(() => {
     if (!channel) return [];
 
-    const key = channel.epgId || channel.name;
-    const programs = epgData[key] || epgData[channel.name] || [];
+    const programs = getGuideKeys(channel)
+      .map((key) => epgData[key])
+      .find((items) => Array.isArray(items) && items.length) || [];
     if (!programs.length) return [];
 
     const now = new Date();
@@ -70,7 +94,7 @@ function EPGGuide({ channel, epgData, loading }) {
           ))}
         </div>
       ) : (
-        <p className="no-epg">No EPG data available</p>
+        <p className="no-epg">No guide data was found for this channel in the provider EPG.</p>
       )}
     </div>
   );
