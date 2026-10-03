@@ -18,6 +18,8 @@ const DEFAULT_CONFIG = {
 const PLAYLIST_TIMEOUT_MS = 60000;
 const EPG_TIMEOUT_MS = 20000;
 const JSON_TIMEOUT_MS = 60000;
+const PLAYLIST_CACHE_MAX_AGE_MS = 2 * 24 * 60 * 60 * 1000;
+const PLAYLIST_CACHE_STORAGE_KEY = 'openStreamPlayerPlaylistCache';
 const PLAYER_HEADERS = {
   'User-Agent': 'IPTVSmartersPro',
   Accept: 'application/json,text/plain,*/*',
@@ -138,16 +140,31 @@ function App() {
   }, []);
 
   useEffect(() => {
-    const stored = localStorage.getItem('streamPlayerConfig');
-    if (stored) {
-      setConfig(JSON.parse(stored));
-      fetchPlaylist(JSON.parse(stored));
-      fetchEPG(JSON.parse(stored));
-    } else {
-      fetchPlaylist();
-      fetchEPG();
-    }
-    // Load saved configuration once on startup; settings saves trigger their own refresh.
+    const boot = async () => {
+      const stored = localStorage.getItem('streamPlayerConfig');
+      const startupConfig = stored ? JSON.parse(stored) : config;
+      if (stored) setConfig(startupConfig);
+
+      const cachedChannels = await loadCachedPlaylist(startupConfig);
+      if (cachedChannels?.length) {
+        setChannels(cachedChannels);
+        setSelectedChannel((current) => current || cachedChannels[0]);
+        setLoading(false);
+        setError(null);
+        fetchEPG(startupConfig);
+        return;
+      }
+
+      fetchPlaylist(startupConfig, { manual: false });
+      fetchEPG(startupConfig);
+    };
+
+    boot().catch((err) => {
+      console.error(err);
+      fetchPlaylist(config, { manual: false });
+      fetchEPG(config);
+    });
+    // Load saved configuration once on startup; settings saves and Refresh force their own reload.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -213,22 +230,76 @@ function App() {
     return cfg.epgUrl || process.env.REACT_APP_EPG_URL || DEFAULT_EPG_URL;
   };
 
-  const fetchPlaylist = async (cfg = null) => {
+  const getPlaylistCacheKey = (cfg = config) => JSON.stringify({
+    mode: cfg?.configMode || 'm3u',
+    m3uUrl: cfg?.m3uUrl || '',
+    xtreamServer: getXtreamBaseUrl(cfg),
+    xtreamUser: cfg?.xtreamUser || '',
+  });
+
+  const readPlaylistCache = async () => {
+    if (window.electronAPI?.getPlaylistCache) return window.electronAPI.getPlaylistCache();
+
+    try {
+      return JSON.parse(localStorage.getItem(PLAYLIST_CACHE_STORAGE_KEY) || 'null');
+    } catch (err) {
+      return null;
+    }
+  };
+
+  const writePlaylistCache = async (cache) => {
+    if (window.electronAPI?.setPlaylistCache) return window.electronAPI.setPlaylistCache(cache);
+
+    try {
+      localStorage.setItem(PLAYLIST_CACHE_STORAGE_KEY, JSON.stringify(cache));
+      return true;
+    } catch (err) {
+      console.warn('Unable to write playlist cache:', err);
+      return false;
+    }
+  };
+
+  const loadCachedPlaylist = async (cfg = config) => {
+    const cache = await readPlaylistCache();
+    if (!cache?.channels?.length) return null;
+    if (cache.cacheKey !== getPlaylistCacheKey(cfg)) return null;
+    if (Date.now() - Number(cache.savedAt || 0) > PLAYLIST_CACHE_MAX_AGE_MS) return null;
+
+    setLoadingProgress({
+      message: 'Using saved playlist',
+      detail: 'OpenStreamPlayer will refresh automatically every 2 days, or immediately when you press Refresh.',
+      elapsedSeconds: 0,
+      startedAt: null,
+    });
+    return cache.channels;
+  };
+
+  const savePlaylistCache = async (cfg, parsedChannels) => {
+    if (!parsedChannels?.length) return;
+    await writePlaylistCache({
+      cacheKey: getPlaylistCacheKey(cfg),
+      savedAt: Date.now(),
+      channels: parsedChannels,
+    });
+  };
+
+  const fetchPlaylist = async (cfg = null, options = { manual: true }) => {
     try {
       setLoading(true);
       setError(null);
+      const effectiveConfig = cfg || config;
       setLoadingProgress({
-        message: canUseXtreamApi(cfg || config) ? 'Connecting to Xtream API' : 'Connecting to playlist',
-        detail: canUseXtreamApi(cfg || config)
-          ? 'Requesting your provider catalog with player-compatible headers.'
-          : 'Requesting your M3U channel list. Slow providers can take a few seconds.',
+        message: canUseXtreamApi(effectiveConfig) ? 'Connecting to Xtream API' : 'Connecting to playlist',
+        detail: options.manual
+          ? 'Refreshing from the provider now.'
+          : 'No saved playlist under 2 days old was found, so OpenStreamPlayer is refreshing once.',
         elapsedSeconds: 0,
         startedAt: Date.now(),
       });
 
-      const parsed = canUseXtreamApi(cfg || config)
-        ? await fetchXtreamChannels(cfg || config)
-        : await fetchM3UChannels(cfg);
+      const parsed = canUseXtreamApi(effectiveConfig)
+        ? await fetchXtreamChannels(effectiveConfig)
+        : await fetchM3UChannels(effectiveConfig);
 
       setLoadingProgress((current) => ({
         ...current,
@@ -236,6 +307,7 @@ function App() {
         detail: 'Reading channel names, groups, logos, and stream URLs.',
       }));
       setChannels(parsed);
+      await savePlaylistCache(effectiveConfig, parsed);
       if (parsed.length > 0) {
         setSelectedChannel((current) => {
           if (current) {
@@ -700,7 +772,7 @@ function App() {
           <button onClick={() => setSettingsOpen(true)} className="btn btn-secondary">
             Settings
           </button>
-          <button onClick={() => fetchPlaylist()} disabled={loading} className="btn btn-primary">
+          <button onClick={() => fetchPlaylist(config, { manual: true })} disabled={loading} className="btn btn-primary">
             {loading ? <span className="mini-spinner" /> : null}
             {loading ? 'Loading' : 'Refresh'}
           </button>
@@ -713,7 +785,7 @@ function App() {
         onSave={(cfg) => {
           setConfig(cfg);
           setSettingsOpen(false);
-          fetchPlaylist(cfg);
+          fetchPlaylist(cfg, { manual: true });
           fetchEPG(cfg);
         }}
       />
@@ -759,7 +831,7 @@ function App() {
               <h2>{error ? 'Playlist did not load' : 'Add a playlist to start watching'}</h2>
               <p>{error || 'Open Settings, add your M3U or Xtream details, and your channels will appear here.'}</p>
               <div className="state-actions">
-                <button className="btn btn-primary" onClick={() => fetchPlaylist()}>
+                <button className="btn btn-primary" onClick={() => fetchPlaylist(config, { manual: true })}>
                   Try Again
                 </button>
                 <button className="btn btn-secondary" onClick={() => setSettingsOpen(true)}>

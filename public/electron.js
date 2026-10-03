@@ -1,5 +1,6 @@
 const { app, BrowserWindow, Menu, ipcMain } = require('electron');
 const path = require('path');
+const fs = require('fs/promises');
 const isDev = require('electron-is-dev');
 const axios = require('axios');
 
@@ -11,6 +12,8 @@ const playerHeaders = {
   'User-Agent': 'IPTVSmartersPro',
   Accept: 'application/json,text/plain,*/*',
 };
+
+const playlistCachePath = () => path.join(app.getPath('userData'), 'playlist-cache.json');
 
 let mainWindow;
 
@@ -75,5 +78,27 @@ ipcMain.handle('fetch-json', async (event, url, options = {}) => {
   } catch (error) {
     console.error('Error fetching JSON:', error);
     throw error;
+  }
+});
+
+
+ipcMain.handle('get-playlist-cache', async () => {
+  try {
+    const text = await fs.readFile(playlistCachePath(), 'utf8');
+    return JSON.parse(text);
+  } catch (error) {
+    if (error?.code !== 'ENOENT') console.warn('Unable to read playlist cache:', error);
+    return null;
+  }
+});
+
+ipcMain.handle('set-playlist-cache', async (event, cache) => {
+  try {
+    await fs.mkdir(path.dirname(playlistCachePath()), { recursive: true });
+    await fs.writeFile(playlistCachePath(), JSON.stringify(cache), 'utf8');
+    return true;
+  } catch (error) {
+    console.warn('Unable to write playlist cache:', error);
+    return false;
   }
 });

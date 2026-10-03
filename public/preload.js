@@ -4,4 +4,6 @@ contextBridge.exposeInMainWorld('electronAPI', {
   fetchM3U: (url) => ipcRenderer.invoke('fetch-m3u', url),
   fetchEPG: (url) => ipcRenderer.invoke('fetch-epg', url),
   fetchJSON: (url, options = {}) => ipcRenderer.invoke('fetch-json', url, options),
+  getPlaylistCache: () => ipcRenderer.invoke('get-playlist-cache'),
+  setPlaylistCache: (cache) => ipcRenderer.invoke('set-playlist-cache', cache),
 });
