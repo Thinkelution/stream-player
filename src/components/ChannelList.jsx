@@ -1,6 +1,6 @@
 import React, { useState, useMemo, useDeferredValue, useEffect } from 'react';
 
-const ROW_HEIGHT = 60;
+const ROW_HEIGHT = 50;
 const OVERSCAN = 8;
 
 function ChannelList({ channels, selectedChannel, onSelect, favorites, onToggleFavorite, loading }) {
@@ -11,7 +11,7 @@ function ChannelList({ channels, selectedChannel, onSelect, favorites, onToggleF
   const [selectedType, setSelectedType] = useState('all');
   const deferredSearchTerm = useDeferredValue(searchTerm);
 
-  const getChannelKey = (channel) => `${channel.name}|${channel.group}|${channel.url}`;
+  const getChannelKey = (channel) => `${channel.name}|${channel.group}|${channel.contentType || 'live'}|${channel.streamId || channel.seriesId || channel.url}`;
   const favoriteSet = useMemo(() => new Set(favorites), [favorites]);
   const isFavorite = (channel) => favoriteSet.has(getChannelKey(channel));
 
@@ -151,7 +151,7 @@ function ChannelList({ channels, selectedChannel, onSelect, favorites, onToggleF
             {virtualRows.rows.map((channel) => (
               <div
                 key={getChannelKey(channel)}
-                className={`channel-item ${selectedChannel === channel ? 'active' : ''}`}
+                className={`channel-item ${selectedChannel && getChannelKey(selectedChannel) === getChannelKey(channel) ? 'active' : ''}`}
                 onClick={() => onSelect(channel)}
               >
                 <div className="channel-logo-frame">

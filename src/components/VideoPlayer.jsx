@@ -1,13 +1,14 @@
-import React, { useCallback, useEffect, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import HLS from 'hls.js';
 
 const PLAYBACK_START_TIMEOUT_MS = 20000;
 
-function VideoPlayer({ channel, isFavorite, onToggleFavorite }) {
+function VideoPlayer({ channel, channels = [], selectedChannel, onSelectChannel, isFavorite, onToggleFavorite, getChannelKey }) {
   const videoRef = useRef(null);
   const hlsRef = useRef(null);
   const startTimerRef = useRef(null);
   const controlsTimerRef = useRef(null);
+  const drawerTimerRef = useRef(null);
   const streamSessionRef = useRef(0);
   const stoppedRef = useRef(false);
   const [isBuffering, setIsBuffering] = useState(true);
@@ -22,8 +23,27 @@ function VideoPlayer({ channel, isFavorite, onToggleFavorite }) {
   const [selectedCaption, setSelectedCaption] = useState(-1);
   const [controlsVisible, setControlsVisible] = useState(true);
   const [reloadNonce, setReloadNonce] = useState(0);
+  const [isFullscreen, setIsFullscreen] = useState(false);
+  const [channelDrawerVisible, setChannelDrawerVisible] = useState(false);
 
   const isActiveSession = useCallback((sessionId) => streamSessionRef.current === sessionId, []);
+
+  const keyForChannel = useCallback((item) => {
+    if (!item) return '';
+    if (getChannelKey) return getChannelKey(item);
+    return `${item.name}|${item.group}|${item.contentType || 'live'}|${item.streamId || item.seriesId || item.url}`;
+  }, [getChannelKey]);
+
+  const fullscreenChannels = useMemo(() => {
+    if (!channels.length) return [];
+
+    const currentKey = keyForChannel(selectedChannel || channel);
+    const currentIndex = Math.max(0, channels.findIndex((item) => keyForChannel(item) === currentKey));
+    const start = Math.max(0, currentIndex - 18);
+    const end = Math.min(channels.length, currentIndex + 19);
+    return channels.slice(start, end);
+  }, [channels, selectedChannel, channel, keyForChannel]);
+
 
   const destroyHls = useCallback((hls = hlsRef.current) => {
     if (hls) hls.destroy();
@@ -91,6 +111,52 @@ function VideoPlayer({ channel, isFavorite, onToggleFavorite }) {
       }, 2200);
     }
   }, [playbackError]);
+
+
+  const showChannelDrawerTemporarily = useCallback(() => {
+    setChannelDrawerVisible(true);
+    window.clearTimeout(drawerTimerRef.current);
+    drawerTimerRef.current = window.setTimeout(() => {
+      setChannelDrawerVisible(false);
+    }, 2600);
+  }, []);
+
+  const handleShellMouseMove = useCallback((event) => {
+    showControlsTemporarily();
+
+    if (!isFullscreen) return;
+    const rect = event.currentTarget.getBoundingClientRect();
+    if (rect.right - event.clientX <= 120) showChannelDrawerTemporarily();
+  }, [isFullscreen, showChannelDrawerTemporarily, showControlsTemporarily]);
+
+  const keepChannelDrawerOpen = useCallback(() => {
+    window.clearTimeout(drawerTimerRef.current);
+    setChannelDrawerVisible(true);
+  }, []);
+
+  const hideChannelDrawerLater = useCallback(() => {
+    window.clearTimeout(drawerTimerRef.current);
+    drawerTimerRef.current = window.setTimeout(() => {
+      setChannelDrawerVisible(false);
+    }, 1000);
+  }, []);
+
+
+  useEffect(() => {
+    const onFullscreenChange = () => {
+      const videoShell = videoRef.current?.closest('.video-shell');
+      const fullscreenElement = document.fullscreenElement;
+      const nextIsFullscreen = Boolean(videoShell && fullscreenElement === videoShell);
+      setIsFullscreen(nextIsFullscreen);
+      if (!nextIsFullscreen) setChannelDrawerVisible(false);
+    };
+
+    document.addEventListener('fullscreenchange', onFullscreenChange);
+    return () => {
+      document.removeEventListener('fullscreenchange', onFullscreenChange);
+      window.clearTimeout(drawerTimerRef.current);
+    };
+  }, []);
 
   useEffect(() => {
     if (!channel || !videoRef.current) return undefined;
@@ -295,7 +361,7 @@ function VideoPlayer({ channel, isFavorite, onToggleFavorite }) {
           {isFavorite ? '★ Favorite' : '☆ Add Favorite'}
         </button>
       </div>
-      <div className="video-shell" onMouseMove={showControlsTemporarily} onFocus={showControlsTemporarily}>
+      <div className="video-shell" onMouseMove={handleShellMouseMove} onFocus={showControlsTemporarily}>
         {isBuffering && !isStopped && (
           <div className="video-overlay">
             <div className="spinner" />
@@ -343,6 +409,32 @@ function VideoPlayer({ channel, isFavorite, onToggleFavorite }) {
             }
           }}
         />
+        {isFullscreen && fullscreenChannels.length > 0 && (
+          <div
+            className={`fullscreen-channel-drawer ${channelDrawerVisible ? 'visible' : ''}`}
+            onMouseEnter={keepChannelDrawerOpen}
+            onMouseLeave={hideChannelDrawerLater}
+          >
+            <div className="fullscreen-drawer-heading">Channels</div>
+            <div className="fullscreen-drawer-hint">Move cursor to the right edge · ↑ ↓ changes channel</div>
+            <div className="fullscreen-channel-items">
+              {fullscreenChannels.map((item) => {
+                const active = keyForChannel(item) === keyForChannel(selectedChannel || channel);
+                return (
+                  <button
+                    type="button"
+                    key={keyForChannel(item)}
+                    className={`fullscreen-channel-item ${active ? 'active' : ''}`}
+                    onClick={() => onSelectChannel?.(item)}
+                  >
+                    <span>{item.name}</span>
+                    <small>{item.group}</small>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        )}
         <div className={`player-controls ${controlsVisible ? 'visible' : 'is-hidden'}`}>
           <div className="control-left">
             <button type="button" className="icon-control primary-control" onClick={togglePlay} title={isPlaying && !isStopped ? 'Pause' : 'Play'} aria-label={isPlaying && !isStopped ? 'Pause' : 'Play'}>

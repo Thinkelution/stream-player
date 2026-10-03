@@ -327,6 +327,36 @@ function App() {
     }
   };
 
+
+  useEffect(() => {
+    const handleChannelKeydown = (event) => {
+      if (settingsOpen || !channels.length || !selectedChannel) return;
+      if (!['ArrowUp', 'ArrowDown'].includes(event.key)) return;
+
+      const target = event.target;
+      const isTyping = target?.tagName === 'INPUT'
+        || target?.tagName === 'TEXTAREA'
+        || target?.tagName === 'SELECT'
+        || target?.isContentEditable;
+      if (isTyping) return;
+
+      event.preventDefault();
+      const selectedKey = getChannelKey(selectedChannel);
+      const currentIndex = channels.findIndex((item) => getChannelKey(item) === selectedKey);
+      const safeIndex = currentIndex === -1 ? 0 : currentIndex;
+      const nextIndex = event.key === 'ArrowDown'
+        ? Math.min(channels.length - 1, safeIndex + 1)
+        : Math.max(0, safeIndex - 1);
+
+      if (nextIndex !== safeIndex) handleSelectChannel(channels[nextIndex]);
+    };
+
+    window.addEventListener('keydown', handleChannelKeydown);
+    return () => window.removeEventListener('keydown', handleChannelKeydown);
+    // Arrow keys should follow the current loaded channel list while ignoring text fields.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [channels, selectedChannel, settingsOpen]);
+
   const fetchXtreamChannelEpg = async (channel, cfg) => {
     try {
       setEpgLoading(true);
@@ -591,6 +621,10 @@ function App() {
             <>
               <VideoPlayer
                 channel={selectedChannel}
+                channels={channels}
+                selectedChannel={selectedChannel}
+                onSelectChannel={handleSelectChannel}
+                getChannelKey={getChannelKey}
                 isFavorite={isFavorite(selectedChannel)}
                 onToggleFavorite={() => toggleFavorite(selectedChannel)}
               />
