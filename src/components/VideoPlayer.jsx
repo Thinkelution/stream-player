@@ -7,6 +7,7 @@ function VideoPlayer({ channel, isFavorite, onToggleFavorite }) {
   const videoRef = useRef(null);
   const hlsRef = useRef(null);
   const startTimerRef = useRef(null);
+  const controlsTimerRef = useRef(null);
   const streamSessionRef = useRef(0);
   const stoppedRef = useRef(false);
   const [isBuffering, setIsBuffering] = useState(true);
@@ -14,8 +15,7 @@ function VideoPlayer({ channel, isFavorite, onToggleFavorite }) {
   const [isStopped, setIsStopped] = useState(false);
   const [isPlaying, setIsPlaying] = useState(false);
   const [isMuted, setIsMuted] = useState(false);
-  const [currentTime, setCurrentTime] = useState(0);
-  const [duration, setDuration] = useState(0);
+  const [controlsVisible, setControlsVisible] = useState(true);
   const [reloadNonce, setReloadNonce] = useState(0);
 
   const isActiveSession = useCallback((sessionId) => streamSessionRef.current === sessionId, []);
@@ -43,8 +43,7 @@ function VideoPlayer({ channel, isFavorite, onToggleFavorite }) {
     setIsBuffering(false);
     setPlaybackError(null);
     setIsPlaying(false);
-    setCurrentTime(0);
-    setDuration(0);
+    setControlsVisible(true);
     if (manual) setIsStopped(true);
   }, [destroyHls, resetVideoElement]);
 
@@ -65,6 +64,7 @@ function VideoPlayer({ channel, isFavorite, onToggleFavorite }) {
     setPlaybackError(message);
     setIsBuffering(false);
     setIsPlaying(false);
+    setControlsVisible(true);
   }, [isActiveSession]);
 
   const handleVideoProgress = () => {
@@ -74,13 +74,16 @@ function VideoPlayer({ channel, isFavorite, onToggleFavorite }) {
     if (video.readyState > 0) markPlaybackStarted(streamSessionRef.current);
   };
 
-  const handleTimeUpdate = () => {
-    const video = videoRef.current;
-    if (!video) return;
+  const showControlsTemporarily = useCallback(() => {
+    setControlsVisible(true);
+    window.clearTimeout(controlsTimerRef.current);
 
-    setCurrentTime(Number.isFinite(video.currentTime) ? video.currentTime : 0);
-    setDuration(Number.isFinite(video.duration) ? video.duration : 0);
-  };
+    if (!videoRef.current?.paused && !stoppedRef.current && !playbackError) {
+      controlsTimerRef.current = window.setTimeout(() => {
+        setControlsVisible(false);
+      }, 2200);
+    }
+  }, [playbackError]);
 
   useEffect(() => {
     if (!channel || !videoRef.current) return undefined;
@@ -101,8 +104,7 @@ function VideoPlayer({ channel, isFavorite, onToggleFavorite }) {
     setIsBuffering(true);
     setPlaybackError(null);
     setIsPlaying(false);
-    setCurrentTime(0);
-    setDuration(0);
+    setControlsVisible(true);
 
     startTimerRef.current = window.setTimeout(() => {
       reportPlaybackError(
@@ -164,6 +166,20 @@ function VideoPlayer({ channel, isFavorite, onToggleFavorite }) {
     return undefined;
   }, [channel, reloadNonce, destroyHls, isActiveSession, markPlaybackStarted, reportPlaybackError]);
 
+  useEffect(() => {
+    if (isPlaying && !isBuffering && !isStopped && !playbackError) {
+      window.clearTimeout(controlsTimerRef.current);
+      controlsTimerRef.current = window.setTimeout(() => {
+        setControlsVisible(false);
+      }, 2200);
+    } else {
+      window.clearTimeout(controlsTimerRef.current);
+      setControlsVisible(true);
+    }
+
+    return () => window.clearTimeout(controlsTimerRef.current);
+  }, [isPlaying, isBuffering, isStopped, playbackError]);
+
   const togglePlay = () => {
     const video = videoRef.current;
     if (!video) return;
@@ -174,7 +190,10 @@ function VideoPlayer({ channel, isFavorite, onToggleFavorite }) {
     }
 
     if (video.paused) {
-      video.play().then(() => setIsPlaying(true)).catch(() => {
+      video.play().then(() => {
+        setIsPlaying(true);
+        showControlsTemporarily();
+      }).catch(() => {
         setPlaybackError('Unable to resume this stream. Try another channel.');
       });
     } else {
@@ -191,29 +210,10 @@ function VideoPlayer({ channel, isFavorite, onToggleFavorite }) {
     setIsMuted(video.muted);
   };
 
-  const seek = (event) => {
-    const video = videoRef.current;
-    if (!video || !duration || isStopped) return;
-
-    const nextTime = (Number(event.target.value) / 100) * duration;
-    video.currentTime = nextTime;
-    setCurrentTime(nextTime);
-  };
-
   const enterFullscreen = () => {
     const videoShell = videoRef.current?.closest('.video-shell');
     if (videoShell?.requestFullscreen) videoShell.requestFullscreen();
   };
-
-  const formatTime = (value) => {
-    if (!Number.isFinite(value) || value <= 0) return '0:00';
-
-    const minutes = Math.floor(value / 60);
-    const seconds = Math.floor(value % 60).toString().padStart(2, '0');
-    return `${minutes}:${seconds}`;
-  };
-
-  const progressValue = duration ? Math.min(100, (currentTime / duration) * 100) : 0;
 
   return (
     <div className="video-player">
@@ -236,7 +236,7 @@ function VideoPlayer({ channel, isFavorite, onToggleFavorite }) {
           {isFavorite ? '★ Favorite' : '☆ Add Favorite'}
         </button>
       </div>
-      <div className="video-shell">
+      <div className="video-shell" onMouseMove={showControlsTemporarily} onFocus={showControlsTemporarily}>
         {isBuffering && !isStopped && (
           <div className="video-overlay">
             <div className="spinner" />
@@ -264,10 +264,14 @@ function VideoPlayer({ channel, isFavorite, onToggleFavorite }) {
           onCanPlay={() => markPlaybackStarted(streamSessionRef.current)}
           onPlaying={() => markPlaybackStarted(streamSessionRef.current)}
           onProgress={handleVideoProgress}
-          onDurationChange={handleTimeUpdate}
-          onTimeUpdate={handleTimeUpdate}
-          onPlay={() => setIsPlaying(true)}
-          onPause={() => setIsPlaying(false)}
+          onPlay={() => {
+            setIsPlaying(true);
+            showControlsTemporarily();
+          }}
+          onPause={() => {
+            setIsPlaying(false);
+            setControlsVisible(true);
+          }}
           onWaiting={() => {
             if (!stoppedRef.current) setIsBuffering(true);
           }}
@@ -280,26 +284,13 @@ function VideoPlayer({ channel, isFavorite, onToggleFavorite }) {
             }
           }}
         />
-        <div className="player-controls">
+        <div className={`player-controls ${controlsVisible ? 'visible' : 'is-hidden'}`}>
           <button type="button" className="control-button primary-control" onClick={togglePlay}>
             {isPlaying && !isStopped ? 'Pause' : 'Play'}
           </button>
           <button type="button" className="control-button stop-control" onClick={() => stopStream(true)} disabled={isStopped}>
             Stop
           </button>
-          <span className="time-label">{formatTime(currentTime)}</span>
-          <input
-            className="seek-slider"
-            type="range"
-            min="0"
-            max="100"
-            step="0.1"
-            value={progressValue}
-            onChange={seek}
-            disabled={!duration || isStopped}
-            aria-label="Seek stream"
-          />
-          <span className="time-label">{duration ? formatTime(duration) : 'Live'}</span>
           <button type="button" className="control-button" onClick={toggleMute}>
             {isMuted ? 'Unmute' : 'Mute'}
           </button>

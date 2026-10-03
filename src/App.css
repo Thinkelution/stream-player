@@ -772,8 +772,7 @@ button {
   right: 0.9rem;
   bottom: 0.8rem;
   z-index: 3;
-  display: grid;
-  grid-template-columns: auto auto auto minmax(7rem, 1fr) auto auto auto;
+  display: flex;
   align-items: center;
   gap: 0.55rem;
   padding: 0.55rem;
@@ -782,6 +781,9 @@ button {
   background: rgba(5, 10, 18, 0.72);
   box-shadow: 0 18px 45px rgba(0, 0, 0, 0.35);
   backdrop-filter: blur(14px);
+  opacity: 1;
+  transform: translateY(0);
+  transition: opacity 0.2s ease, transform 0.2s ease;
 }
 
 .control-button {
@@ -803,8 +805,7 @@ button {
   background: rgba(20, 184, 166, 0.16);
 }
 
-.control-button:disabled,
-.seek-slider:disabled {
+.control-button:disabled {
   cursor: not-allowed;
   opacity: 0.5;
 }
@@ -821,18 +822,19 @@ button {
   color: #fecaca;
 }
 
-.seek-slider {
-  width: 100%;
-  accent-color: var(--accent);
-  cursor: pointer;
+
+.player-controls.is-hidden {
+  opacity: 0;
+  pointer-events: none;
+  transform: translateY(0.6rem);
 }
 
-.time-label {
-  color: #cbd5e1;
-  font-size: 0.75rem;
-  font-weight: 800;
-  min-width: 2.4rem;
-  text-align: center;
+.player-controls.visible,
+.video-shell:hover .player-controls,
+.player-controls:focus-within {
+  opacity: 1;
+  pointer-events: auto;
+  transform: translateY(0);
 }
 
 .stopped-overlay {
@@ -845,11 +847,6 @@ button {
 
 @media (max-width: 700px) {
   .player-controls {
-    grid-template-columns: repeat(4, auto);
-  }
-
-  .seek-slider,
-  .time-label {
-    display: none;
+    flex-wrap: wrap;
   }
 }
