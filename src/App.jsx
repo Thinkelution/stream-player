@@ -4,6 +4,7 @@ import './App.css';
 import ChannelList from './components/ChannelList';
 import VideoPlayer from './components/VideoPlayer';
 import EPGGuide from './components/EPGGuide';
+import Settings from './components/Settings';
 
 function App() {
   const [channels, setChannels] = useState([]);
@@ -11,16 +12,47 @@ function App() {
   const [epgData, setEpgData] = useState({});
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [settingsOpen, setSettingsOpen] = useState(false);
+  const [config, setConfig] = useState(null);
 
   useEffect(() => {
-    fetchPlaylist();
-    fetchEPG();
+    const stored = localStorage.getItem('streamPlayerConfig');
+    if (stored) {
+      setConfig(JSON.parse(stored));
+      fetchPlaylist(JSON.parse(stored));
+      fetchEPG(JSON.parse(stored));
+    } else {
+      fetchPlaylist();
+      fetchEPG();
+    }
   }, []);
 
-  const fetchPlaylist = async () => {
+  const getM3uUrl = (cfg) => {
+    if (!cfg) cfg = config;
+    if (!cfg) return process.env.REACT_APP_M3U_URL;
+
+    if (cfg.configMode === 'xtream' && cfg.xtreamServer && cfg.xtreamUser && cfg.xtreamPass) {
+      return `${cfg.xtreamServer}/get.php?username=${cfg.xtreamUser}&password=${cfg.xtreamPass}&type=m3u_plus&output=mpegts`;
+    }
+    return cfg.m3uUrl || process.env.REACT_APP_M3U_URL;
+  };
+
+  const getEpgUrl = (cfg) => {
+    if (!cfg) cfg = config;
+    if (!cfg) return process.env.REACT_APP_EPG_URL;
+
+    if (cfg.configMode === 'xtream' && cfg.xtreamServer && cfg.xtreamUser && cfg.xtreamPass) {
+      return `${cfg.xtreamServer}/xmltv.php?username=${cfg.xtreamUser}&password=${cfg.xtreamPass}`;
+    }
+    return cfg.epgUrl || process.env.REACT_APP_EPG_URL;
+  };
+
+  const fetchPlaylist = async (cfg = null) => {
     try {
       setLoading(true);
-      const m3uUrl = process.env.REACT_APP_M3U_URL;
+      const m3uUrl = getM3uUrl(cfg);
+      if (!m3uUrl) throw new Error('No M3U URL configured');
+
       let m3uContent;
 
       if (window.electronAPI) {
@@ -42,9 +74,14 @@ function App() {
     }
   };
 
-  const fetchEPG = async () => {
+  const fetchEPG = async (cfg = null) => {
     try {
-      const epgUrl = process.env.REACT_APP_EPG_URL;
+      const epgUrl = getEpgUrl(cfg);
+      if (!epgUrl) {
+        console.log('No EPG URL configured');
+        return;
+      }
+
       let epgContent;
 
       if (window.electronAPI) {
@@ -118,10 +155,26 @@ function App() {
     <div className="app">
       <header className="app-header">
         <h1>StreamPlayer</h1>
-        <button onClick={fetchPlaylist} disabled={loading}>
-          {loading ? 'Loading...' : 'Refresh'}
-        </button>
+        <div className="header-buttons">
+          <button onClick={() => setSettingsOpen(true)} className="btn-settings">
+            ⚙ Settings
+          </button>
+          <button onClick={() => fetchPlaylist()} disabled={loading}>
+            {loading ? 'Loading...' : 'Refresh'}
+          </button>
+        </div>
       </header>
+
+      <Settings
+        isOpen={settingsOpen}
+        onClose={() => setSettingsOpen(false)}
+        onSave={(cfg) => {
+          setConfig(cfg);
+          setSettingsOpen(false);
+          fetchPlaylist(cfg);
+          fetchEPG(cfg);
+        }}
+      />
 
       {error && <div className="error-banner">{error}</div>}
 

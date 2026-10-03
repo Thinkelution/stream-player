@@ -16,14 +16,72 @@ An open-source native Electron app for streaming M3U8/IPTV content with EPG (Ele
 ### From Homebrew (macOS)
 
 ```bash
-brew tap ownsafeai/stream-player
-brew install stream-player
+brew tap thinkelution/tap
+brew install --cask thinkelution/tap/stream-player
 ```
+
+The current macOS release supports Apple Silicon. StreamPlayer is installed in
+`/Applications/StreamPlayer.app` and can be opened from Applications or with
+`open -a StreamPlayer`.
+
+### First launch on macOS
+
+This release is ad-hoc signed, so its app bundle has a verifiable signature, but
+it is not signed with an Apple Developer ID or notarized by Apple. macOS may block
+it as an unidentified developer or display “damaged” even when its ad-hoc signature
+is valid. Try **System Settings → Privacy & Security → Open Anyway** if that option
+is offered, then confirm **Open**. See
+[Apple's instructions](https://support.apple.com/102445).
+
+If no exception is offered, users who trust this release can explicitly approve
+only this installed app from Terminal. First verify the bundle; do not continue
+if verification fails:
+
+```bash
+codesign --verify --deep --strict /Applications/StreamPlayer.app && \
+  xattr -dr com.apple.quarantine /Applications/StreamPlayer.app
+open -a StreamPlayer
+```
+
+Removing quarantine skips Gatekeeper's first-launch check for this copy of the
+app. An ad-hoc signature checks bundle integrity, not the publisher's identity or
+Apple malware review. The cask does not remove quarantine automatically. An
+upgrade may require approval again. Configure your playlist in **Settings**.
+
+The macOS package is a Homebrew **cask**, as it installs a prebuilt `.app` from a
+disk image. Maintainers should copy `Casks/stream-player.rb` into the same path in
+`Thinkelution/homebrew-tap` and remove the old `Formula/stream-player.rb` there.
+For each release, update the version and SHA-256 using the final uploaded DMG.
+Do not replace an existing release asset after publishing its checksum; publish
+a new version instead.
+
+### Preparing a macOS release
+
+Run `npm run build-mac`. It produces Apple Silicon DMG/ZIP artifacts in `dist/`.
+The signing hook seals Electron's nested helpers/frameworks and the outer app,
+then requires `codesign --verify --deep --strict` to pass before packaging. It uses
+an available Developer ID identity, otherwise an ad-hoc identity. Ad-hoc releases
+still need the first-launch approval above. Signing alone does not notarize an app.
+
+Release builds leave the M3U/EPG defaults empty so local `.env` credentials are not
+embedded. Configure your source in the app's Settings after installing.
+
+Before uploading the new version, mount its final DMG and verify the app inside:
+
+```bash
+hdiutil attach -nobrowse -readonly dist/StreamPlayer-0.1.1-arm64.dmg
+codesign --verify --deep --strict --verbose=2 "/Volumes/StreamPlayer 0.1.1-arm64/StreamPlayer.app"
+hdiutil detach "/Volumes/StreamPlayer 0.1.1-arm64"
+shasum -a 256 dist/StreamPlayer-0.1.1-arm64.dmg
+```
+
+Publish the DMG under the matching GitHub release tag, then update the version and
+checksum in the tap's cask. The cask must point to the exact verified artifact.
 
 ### From Source
 
 ```bash
-git clone https://github.com/ownsafeai/stream-player.git
+git clone https://github.com/Thinkelution/stream-player.git
 cd stream-player
 npm install
 npm run dev

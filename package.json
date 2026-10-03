@@ -1,23 +1,24 @@
 {
   "name": "stream-player",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Open-source M3U8/IPTV player with EPG support",
   "main": "public/electron.js",
   "homepage": "./",
   "dependencies": {
+    "axios": "^1.6.0",
+    "date-fns": "^2.30.0",
+    "electron-is-dev": "^2.0.0",
+    "hls.js": "^1.4.12",
     "react": "^18.2.0",
     "react-dom": "^18.2.0",
-    "react-scripts": "5.0.1",
-    "axios": "^1.6.0",
-    "hls.js": "^1.4.12",
-    "date-fns": "^2.30.0",
-    "electron-is-dev": "^2.0.0"
+    "react-scripts": "5.0.1"
   },
   "devDependencies": {
+    "@electron/osx-sign": "1.0.5",
+    "concurrently": "^8.2.1",
     "electron": "^27.0.0",
     "electron-builder": "^24.6.4",
     "electron-devtools-installer": "^3.2.0",
-    "concurrently": "^8.2.1",
     "wait-on": "^7.0.1"
   },
   "scripts": {
@@ -25,9 +26,9 @@
     "react-build": "react-scripts build",
     "electron-start": "electron .",
     "dev": "concurrently \"npm run react-start\" \"wait-on http://localhost:3000 && npm run electron-start\"",
-    "build": "npm run react-build && electron-builder",
-    "build-mac": "npm run react-build && electron-builder --mac",
-    "build-win": "npm run react-build && electron-builder --win"
+    "build": "node scripts/build-release.cjs && electron-builder",
+    "build-mac": "node scripts/build-release.cjs && electron-builder --mac --arm64 --publish never",
+    "build-win": "node scripts/build-release.cjs && electron-builder --win"
   },
   "eslintConfig": {
     "extends": "react-app"
@@ -57,6 +58,7 @@
       "buildResources": "assets"
     },
     "mac": {
+      "sign": "scripts/sign-macos.cjs",
       "target": [
         "dmg",
         "zip"
