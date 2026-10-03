@@ -201,7 +201,7 @@ function App() {
 
     const baseUrl = getXtreamBaseUrl(cfg);
     return streams
-      .filter((stream) => stream.stream_id && stream.name)
+      .filter((stream) => stream.stream_id && stream.name && !isXtreamDivider(stream.name))
       .map((stream) => {
         return {
           name: stream.name,
@@ -211,6 +211,8 @@ function App() {
         };
       });
   };
+
+  const isXtreamDivider = (name) => /^\s*#{3,}.*#{3,}\s*$/.test(name);
 
   const fetchJSON = async (url) => {
     if (window.electronAPI?.fetchJSON) return window.electronAPI.fetchJSON(url);

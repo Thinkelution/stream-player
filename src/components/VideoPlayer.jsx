@@ -13,6 +13,12 @@ function VideoPlayer({ channel, isFavorite, onToggleFavorite }) {
   const markPlaybackStarted = () => {
     window.clearTimeout(startTimerRef.current);
     setIsBuffering(false);
+    setPlaybackError(null);
+  };
+
+  const handleVideoProgress = () => {
+    const video = videoRef.current;
+    if (video && video.readyState > 0) markPlaybackStarted();
   };
 
   useEffect(() => {
@@ -102,8 +108,12 @@ function VideoPlayer({ channel, isFavorite, onToggleFavorite }) {
           ref={videoRef}
           controls
           autoPlay
+          onLoadedMetadata={markPlaybackStarted}
+          onLoadedData={markPlaybackStarted}
           onCanPlay={markPlaybackStarted}
           onPlaying={markPlaybackStarted}
+          onProgress={handleVideoProgress}
+          onDurationChange={handleVideoProgress}
           onWaiting={() => setIsBuffering(true)}
           onError={() => {
             setPlaybackError('Unable to play this stream. Try another channel or refresh the playlist.');
