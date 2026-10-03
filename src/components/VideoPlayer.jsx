@@ -1,7 +1,8 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import HLS from 'hls.js';
 
-const PLAYBACK_START_TIMEOUT_MS = 20000;
+const PLAYBACK_START_TIMEOUT_MS = 30000;
+const BUFFERING_STALL_RECOVERY_MS = 12000;
 
 function VideoPlayer({ channel, channels = [], channelListLabel = 'Channels', fullscreenPrograms = [], selectedChannel, onSelectChannel, isFavorite, onToggleFavorite, getChannelKey }) {
   const videoRef = useRef(null);
@@ -12,6 +13,8 @@ function VideoPlayer({ channel, channels = [], channelListLabel = 'Channels', fu
   const streamSessionRef = useRef(0);
   const stoppedRef = useRef(false);
   const [isBuffering, setIsBuffering] = useState(true);
+  const [hasPlaybackStarted, setHasPlaybackStarted] = useState(false);
+  const [bufferingSince, setBufferingSince] = useState(null);
   const [playbackError, setPlaybackError] = useState(null);
   const [isStopped, setIsStopped] = useState(false);
   const [isPlaying, setIsPlaying] = useState(false);
@@ -66,6 +69,8 @@ function VideoPlayer({ channel, channels = [], channelListLabel = 'Channels', fu
     destroyHls();
     resetVideoElement();
     setIsBuffering(false);
+    setHasPlaybackStarted(false);
+    setBufferingSince(null);
     setPlaybackError(null);
     setIsPlaying(false);
     setLevels([]);
@@ -79,6 +84,8 @@ function VideoPlayer({ channel, channels = [], channelListLabel = 'Channels', fu
 
     window.clearTimeout(startTimerRef.current);
     setIsBuffering(false);
+    setHasPlaybackStarted(true);
+    setBufferingSince(null);
     setPlaybackError(null);
     setIsStopped(false);
     setIsPlaying(!videoRef.current?.paused);
@@ -90,6 +97,7 @@ function VideoPlayer({ channel, channels = [], channelListLabel = 'Channels', fu
     window.clearTimeout(startTimerRef.current);
     setPlaybackError(message);
     setIsBuffering(false);
+    setBufferingSince(null);
     setIsPlaying(false);
     setControlsVisible(true);
   }, [isActiveSession]);
@@ -98,8 +106,14 @@ function VideoPlayer({ channel, channels = [], channelListLabel = 'Channels', fu
     const video = videoRef.current;
     if (!video || stoppedRef.current) return;
 
-    if (video.readyState > 0) markPlaybackStarted(streamSessionRef.current);
+    if (video.readyState >= HTMLMediaElement.HAVE_CURRENT_DATA) markPlaybackStarted(streamSessionRef.current);
   };
+
+  const startBuffering = useCallback(() => {
+    if (stoppedRef.current) return;
+    setIsBuffering(true);
+    setBufferingSince((value) => value || Date.now());
+  }, []);
 
   const showControlsTemporarily = useCallback(() => {
     setControlsVisible(true);
@@ -176,6 +190,8 @@ function VideoPlayer({ channel, channels = [], channelListLabel = 'Channels', fu
     stoppedRef.current = false;
     setIsStopped(false);
     setIsBuffering(true);
+    setHasPlaybackStarted(false);
+    setBufferingSince(null);
     setPlaybackError(null);
     setIsPlaying(false);
     setLevels([]);
@@ -187,7 +203,7 @@ function VideoPlayer({ channel, channels = [], channelListLabel = 'Channels', fu
     startTimerRef.current = window.setTimeout(() => {
       reportPlaybackError(
         sessionId,
-        'This stream did not start within 20 seconds. Try another channel or refresh the playlist.'
+        'This stream did not start within 30 seconds. Try another channel or refresh the playlist.'
       );
     }, PLAYBACK_START_TIMEOUT_MS);
 
@@ -195,8 +211,22 @@ function VideoPlayer({ channel, channels = [], channelListLabel = 'Channels', fu
 
     if (shouldUseHls) {
       const hls = new HLS({
-        lowLatencyMode: true,
-        backBufferLength: 30,
+        lowLatencyMode: false,
+        startFragPrefetch: true,
+        maxBufferLength: 90,
+        maxMaxBufferLength: 180,
+        backBufferLength: 60,
+        liveSyncDurationCount: 4,
+        liveMaxLatencyDurationCount: 12,
+        maxBufferHole: 1.5,
+        nudgeOffset: 0.2,
+        nudgeMaxRetry: 8,
+        manifestLoadingMaxRetry: 6,
+        manifestLoadingRetryDelay: 1000,
+        levelLoadingMaxRetry: 6,
+        levelLoadingRetryDelay: 1000,
+        fragLoadingMaxRetry: 8,
+        fragLoadingRetryDelay: 1000,
       });
       hlsRef.current = hls;
       hls.loadSource(url);
@@ -221,9 +251,21 @@ function VideoPlayer({ channel, channels = [], channelListLabel = 'Channels', fu
         if (!isActiveSession(sessionId)) return;
 
         console.error('HLS error:', data);
-        if (data.fatal) {
-          reportPlaybackError(sessionId, 'Unable to play this stream. Try another channel or refresh the playlist.');
+        if (!data.fatal) return;
+
+        if (data.type === HLS.ErrorTypes.NETWORK_ERROR) {
+          hls.startLoad();
+          startBuffering();
+          return;
         }
+
+        if (data.type === HLS.ErrorTypes.MEDIA_ERROR) {
+          hls.recoverMediaError();
+          startBuffering();
+          return;
+        }
+
+        reportPlaybackError(sessionId, 'Unable to play this stream. Try another channel or refresh the playlist.');
       });
 
       return () => {
@@ -251,7 +293,7 @@ function VideoPlayer({ channel, channels = [], channelListLabel = 'Channels', fu
 
     reportPlaybackError(sessionId, 'This stream format is not supported on this device.');
     return undefined;
-  }, [channel, reloadNonce, destroyHls, isActiveSession, markPlaybackStarted, reportPlaybackError]);
+  }, [channel, reloadNonce, destroyHls, isActiveSession, markPlaybackStarted, reportPlaybackError, startBuffering]);
 
 
   useEffect(() => {
@@ -260,6 +302,22 @@ function VideoPlayer({ channel, channels = [], channelListLabel = 'Channels', fu
     video.volume = volume;
     video.muted = isMuted;
   }, [volume, isMuted]);
+
+  useEffect(() => {
+    if (!isBuffering || !hasPlaybackStarted || playbackError || isStopped) return undefined;
+
+    const timer = window.setTimeout(() => {
+      const video = videoRef.current;
+      if (!video || stoppedRef.current || !hlsRef.current) return;
+
+      hlsRef.current.startLoad();
+      if (!video.paused) {
+        video.play().catch(() => {});
+      }
+    }, BUFFERING_STALL_RECOVERY_MS);
+
+    return () => window.clearTimeout(timer);
+  }, [isBuffering, hasPlaybackStarted, bufferingSince, playbackError, isStopped]);
 
   useEffect(() => {
     if (isPlaying && !isBuffering && !isStopped && !playbackError) {
@@ -335,8 +393,14 @@ function VideoPlayer({ channel, channels = [], channelListLabel = 'Channels', fu
     showControlsTemporarily();
   };
 
-  const enterFullscreen = () => {
+  const toggleFullscreen = () => {
     const videoShell = videoRef.current?.closest('.video-shell');
+
+    if (document.fullscreenElement) {
+      document.exitFullscreen?.();
+      return;
+    }
+
     if (videoShell?.requestFullscreen) videoShell.requestFullscreen();
   };
 
@@ -365,9 +429,9 @@ function VideoPlayer({ channel, channels = [], channelListLabel = 'Channels', fu
       </div>
       <div className="video-shell" onMouseMove={handleShellMouseMove} onFocus={showControlsTemporarily}>
         {isBuffering && !isStopped && (
-          <div className="video-overlay">
+          <div className={`video-overlay ${hasPlaybackStarted ? 'buffering-overlay' : ''}`}>
             <div className="spinner" />
-            <span>Starting stream</span>
+            {!hasPlaybackStarted && <span>Starting stream</span>}
           </div>
         )}
         {isStopped && (
@@ -386,7 +450,6 @@ function VideoPlayer({ channel, channels = [], channelListLabel = 'Channels', fu
           ref={videoRef}
           autoPlay
           playsInline
-          onLoadedMetadata={() => markPlaybackStarted(streamSessionRef.current)}
           onLoadedData={() => markPlaybackStarted(streamSessionRef.current)}
           onCanPlay={() => markPlaybackStarted(streamSessionRef.current)}
           onPlaying={() => markPlaybackStarted(streamSessionRef.current)}
@@ -399,9 +462,9 @@ function VideoPlayer({ channel, channels = [], channelListLabel = 'Channels', fu
             setIsPlaying(false);
             setControlsVisible(true);
           }}
-          onWaiting={() => {
-            if (!stoppedRef.current) setIsBuffering(true);
-          }}
+          onWaiting={startBuffering}
+          onStalled={startBuffering}
+          onCanPlayThrough={() => markPlaybackStarted(streamSessionRef.current)}
           onError={() => {
             if (!stoppedRef.current) {
               reportPlaybackError(
@@ -479,8 +542,8 @@ function VideoPlayer({ channel, channels = [], channelListLabel = 'Channels', fu
               {isMuted ? '🔇' : '🔊'}
             </button>
             <input className="volume-slider" type="range" min="0" max="1" step="0.05" value={isMuted ? 0 : volume} onChange={changeVolume} aria-label="Volume" />
-            <button type="button" className="icon-control" onClick={enterFullscreen} title="Fullscreen" aria-label="Fullscreen">
-              ⛶
+            <button type="button" className="icon-control" onClick={toggleFullscreen} title={isFullscreen ? 'Exit fullscreen' : 'Fullscreen'} aria-label={isFullscreen ? 'Exit fullscreen' : 'Fullscreen'}>
+              {isFullscreen ? '⤢' : '⛶'}
             </button>
           </div>
         </div>

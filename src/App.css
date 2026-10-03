@@ -485,6 +485,16 @@ button {
   pointer-events: none;
 }
 
+.buffering-overlay {
+  background: transparent;
+}
+
+.buffering-overlay .spinner {
+  width: 2rem;
+  height: 2rem;
+  opacity: 0.82;
+}
+
 .error-overlay {
   padding: 2rem;
   background: rgba(69, 10, 10, 0.82);
