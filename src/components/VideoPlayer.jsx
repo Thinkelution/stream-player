@@ -15,6 +15,11 @@ function VideoPlayer({ channel, isFavorite, onToggleFavorite }) {
   const [isStopped, setIsStopped] = useState(false);
   const [isPlaying, setIsPlaying] = useState(false);
   const [isMuted, setIsMuted] = useState(false);
+  const [volume, setVolume] = useState(1);
+  const [levels, setLevels] = useState([]);
+  const [selectedLevel, setSelectedLevel] = useState(-1);
+  const [captions, setCaptions] = useState([]);
+  const [selectedCaption, setSelectedCaption] = useState(-1);
   const [controlsVisible, setControlsVisible] = useState(true);
   const [reloadNonce, setReloadNonce] = useState(0);
 
@@ -43,6 +48,8 @@ function VideoPlayer({ channel, isFavorite, onToggleFavorite }) {
     setIsBuffering(false);
     setPlaybackError(null);
     setIsPlaying(false);
+    setLevels([]);
+    setCaptions([]);
     setControlsVisible(true);
     if (manual) setIsStopped(true);
   }, [destroyHls, resetVideoElement]);
@@ -98,12 +105,15 @@ function VideoPlayer({ channel, isFavorite, onToggleFavorite }) {
     video.pause();
     video.removeAttribute('src');
     video.load();
-
     stoppedRef.current = false;
     setIsStopped(false);
     setIsBuffering(true);
     setPlaybackError(null);
     setIsPlaying(false);
+    setLevels([]);
+    setSelectedLevel(-1);
+    setCaptions([]);
+    setSelectedCaption(-1);
     setControlsVisible(true);
 
     startTimerRef.current = window.setTimeout(() => {
@@ -113,7 +123,9 @@ function VideoPlayer({ channel, isFavorite, onToggleFavorite }) {
       );
     }, PLAYBACK_START_TIMEOUT_MS);
 
-    if (HLS.isSupported()) {
+    const shouldUseHls = HLS.isSupported() && /\.m3u8(?:$|[?#])/i.test(url);
+
+    if (shouldUseHls) {
       const hls = new HLS({
         lowLatencyMode: true,
         backBufferLength: 30,
@@ -125,9 +137,16 @@ function VideoPlayer({ channel, isFavorite, onToggleFavorite }) {
       hls.on(HLS.Events.MANIFEST_PARSED, () => {
         if (!isActiveSession(sessionId)) return;
 
+        setLevels(hls.levels || []);
+        setCaptions(hls.subtitleTracks || []);
         video.play().catch(() => {
           markPlaybackStarted(sessionId);
         });
+      });
+
+      hls.on(HLS.Events.SUBTITLE_TRACKS_UPDATED, () => {
+        if (!isActiveSession(sessionId)) return;
+        setCaptions(hls.subtitleTracks || []);
       });
 
       hls.on(HLS.Events.ERROR, (event, data) => {
@@ -149,7 +168,7 @@ function VideoPlayer({ channel, isFavorite, onToggleFavorite }) {
       };
     }
 
-    if (video.canPlayType('application/vnd.apple.mpegurl')) {
+    if (video.canPlayType('application/vnd.apple.mpegurl') || channel.contentType === 'movie' || channel.contentType === 'series') {
       video.src = url;
       video.play().catch(() => markPlaybackStarted(sessionId));
 
@@ -165,6 +184,14 @@ function VideoPlayer({ channel, isFavorite, onToggleFavorite }) {
     reportPlaybackError(sessionId, 'This stream format is not supported on this device.');
     return undefined;
   }, [channel, reloadNonce, destroyHls, isActiveSession, markPlaybackStarted, reportPlaybackError]);
+
+
+  useEffect(() => {
+    const video = videoRef.current;
+    if (!video) return;
+    video.volume = volume;
+    video.muted = isMuted;
+  }, [volume, isMuted]);
 
   useEffect(() => {
     if (isPlaying && !isBuffering && !isStopped && !playbackError) {
@@ -208,12 +235,44 @@ function VideoPlayer({ channel, isFavorite, onToggleFavorite }) {
 
     video.muted = !video.muted;
     setIsMuted(video.muted);
+    showControlsTemporarily();
+  };
+
+  const changeVolume = (event) => {
+    const nextVolume = Number(event.target.value);
+    const video = videoRef.current;
+    setVolume(nextVolume);
+    if (video) {
+      video.volume = nextVolume;
+      video.muted = nextVolume === 0;
+      setIsMuted(video.muted);
+    }
+    showControlsTemporarily();
+  };
+
+  const changeLevel = (event) => {
+    const level = Number(event.target.value);
+    setSelectedLevel(level);
+    if (hlsRef.current) hlsRef.current.currentLevel = level;
+    showControlsTemporarily();
+  };
+
+  const changeCaption = (event) => {
+    const track = Number(event.target.value);
+    setSelectedCaption(track);
+    if (hlsRef.current) {
+      hlsRef.current.subtitleDisplay = track !== -1;
+      hlsRef.current.subtitleTrack = track;
+    }
+    showControlsTemporarily();
   };
 
   const enterFullscreen = () => {
     const videoShell = videoRef.current?.closest('.video-shell');
     if (videoShell?.requestFullscreen) videoShell.requestFullscreen();
   };
+
+  const typeLabel = channel.contentType === 'movie' ? 'Movie' : channel.contentType === 'series' ? 'Series' : 'Now playing';
 
   return (
     <div className="video-player">
@@ -223,9 +282,9 @@ function VideoPlayer({ channel, isFavorite, onToggleFavorite }) {
             {channel.logo ? <img src={channel.logo} alt="" /> : <span>{channel.name.charAt(0)}</span>}
           </div>
           <div>
-            <span className="eyebrow">Now playing</span>
+            <span className="eyebrow">{typeLabel}</span>
             <h2>{channel.name}</h2>
-            <p>{channel.group}</p>
+            <p>{channel.episodeTitle || channel.group}</p>
           </div>
         </div>
         <button
@@ -285,18 +344,35 @@ function VideoPlayer({ channel, isFavorite, onToggleFavorite }) {
           }}
         />
         <div className={`player-controls ${controlsVisible ? 'visible' : 'is-hidden'}`}>
-          <button type="button" className="control-button primary-control" onClick={togglePlay}>
-            {isPlaying && !isStopped ? 'Pause' : 'Play'}
-          </button>
-          <button type="button" className="control-button stop-control" onClick={() => stopStream(true)} disabled={isStopped}>
-            Stop
-          </button>
-          <button type="button" className="control-button" onClick={toggleMute}>
-            {isMuted ? 'Unmute' : 'Mute'}
-          </button>
-          <button type="button" className="control-button" onClick={enterFullscreen}>
-            Fullscreen
-          </button>
+          <div className="control-left">
+            <button type="button" className="icon-control primary-control" onClick={togglePlay} title={isPlaying && !isStopped ? 'Pause' : 'Play'} aria-label={isPlaying && !isStopped ? 'Pause' : 'Play'}>
+              {isPlaying && !isStopped ? '⏸' : '▶'}
+            </button>
+            <button type="button" className="icon-control stop-control" onClick={() => stopStream(true)} disabled={isStopped} title="Stop stream" aria-label="Stop stream">
+              ⏹
+            </button>
+          </div>
+          <div className="control-right">
+            <select className="control-select" value={selectedLevel} onChange={changeLevel} title="Bitrate / quality" aria-label="Bitrate / quality">
+              <option value={-1}>Auto</option>
+              {levels.map((level, index) => (
+                <option key={index} value={index}>{level.height ? `${level.height}p` : `Level ${index + 1}`}</option>
+              ))}
+            </select>
+            <select className="control-select" value={selectedCaption} onChange={changeCaption} disabled={!captions.length} title="Closed captions" aria-label="Closed captions">
+              <option value={-1}>CC Off</option>
+              {captions.map((track, index) => (
+                <option key={index} value={index}>{track.name || track.lang || `CC ${index + 1}`}</option>
+              ))}
+            </select>
+            <button type="button" className="icon-control" onClick={toggleMute} title={isMuted ? 'Unmute' : 'Mute'} aria-label={isMuted ? 'Unmute' : 'Mute'}>
+              {isMuted ? '🔇' : '🔊'}
+            </button>
+            <input className="volume-slider" type="range" min="0" max="1" step="0.05" value={isMuted ? 0 : volume} onChange={changeVolume} aria-label="Volume" />
+            <button type="button" className="icon-control" onClick={enterFullscreen} title="Fullscreen" aria-label="Fullscreen">
+              ⛶
+            </button>
+          </div>
         </div>
       </div>
     </div>

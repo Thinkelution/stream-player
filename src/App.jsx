@@ -7,6 +7,14 @@ import EPGGuide from './components/EPGGuide';
 import Settings from './components/Settings';
 
 const FAVORITES_STORAGE_KEY = 'openStreamPlayerFavorites';
+const DEFAULT_M3U_URL = 'https://iptv-org.github.io/iptv/index.m3u';
+const DEFAULT_EPG_URL = '';
+const DEFAULT_CONFIG = {
+  configMode: 'm3u',
+  m3uUrl: DEFAULT_M3U_URL,
+  epgUrl: DEFAULT_EPG_URL,
+  fontSize: 'compact',
+};
 const PLAYLIST_TIMEOUT_MS = 30000;
 const EPG_TIMEOUT_MS = 20000;
 const JSON_TIMEOUT_MS = 30000;
@@ -56,9 +64,9 @@ function App() {
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [config, setConfig] = useState(() => {
     try {
-      return JSON.parse(localStorage.getItem('streamPlayerConfig') || 'null');
+      return JSON.parse(localStorage.getItem('streamPlayerConfig') || 'null') || DEFAULT_CONFIG;
     } catch (err) {
-      return null;
+      return DEFAULT_CONFIG;
     }
   });
   const [favorites, setFavorites] = useState(() => {
@@ -109,12 +117,12 @@ function App() {
 
   const getM3uUrl = (cfg) => {
     if (!cfg) cfg = config;
-    if (!cfg) return process.env.REACT_APP_M3U_URL;
+    if (!cfg) return process.env.REACT_APP_M3U_URL || DEFAULT_M3U_URL;
 
     if (cfg.configMode === 'xtream' && cfg.xtreamServer && cfg.xtreamUser && cfg.xtreamPass) {
       return `${cfg.xtreamServer}/get.php?username=${cfg.xtreamUser}&password=${cfg.xtreamPass}&type=m3u_plus&output=mpegts`;
     }
-    return cfg.m3uUrl || process.env.REACT_APP_M3U_URL;
+    return cfg.m3uUrl || process.env.REACT_APP_M3U_URL || DEFAULT_M3U_URL;
   };
 
   const getXtreamBaseUrl = (cfg) => (cfg?.xtreamServer || '').replace(/\/+$/, '');
@@ -137,12 +145,12 @@ function App() {
 
   const getEpgUrl = (cfg) => {
     if (!cfg) cfg = config;
-    if (!cfg) return process.env.REACT_APP_EPG_URL;
+    if (!cfg) return process.env.REACT_APP_EPG_URL || DEFAULT_EPG_URL;
 
     if (cfg.configMode === 'xtream' && cfg.xtreamServer && cfg.xtreamUser && cfg.xtreamPass) {
       return `${cfg.xtreamServer}/xmltv.php?username=${cfg.xtreamUser}&password=${cfg.xtreamPass}`;
     }
-    return cfg.epgUrl || process.env.REACT_APP_EPG_URL;
+    return cfg.epgUrl || process.env.REACT_APP_EPG_URL || DEFAULT_EPG_URL;
   };
 
   const fetchPlaylist = async (cfg = null) => {
@@ -207,6 +215,13 @@ function App() {
     return parseM3U(m3uContent);
   };
 
+  const buildCategoryMap = (categories) => new Map(
+    (Array.isArray(categories) ? categories : []).map((category) => [
+      String(category.category_id),
+      category.category_name || 'Other',
+    ])
+  );
+
   const fetchXtreamChannels = async (cfg) => {
     setLoadingProgress((current) => ({
       ...current,
@@ -222,43 +237,94 @@ function App() {
     setLoadingProgress((current) => ({
       ...current,
       message: 'Loading categories',
-      detail: 'Fetching channel groups from the provider catalog.',
+      detail: 'Fetching live, movie, and series groups from the provider catalog.',
     }));
-    const categories = await fetchJSON(getXtreamApiUrl(cfg, 'get_live_categories'));
-    const categoryMap = new Map(
-      (Array.isArray(categories) ? categories : []).map((category) => [
-        String(category.category_id),
-        category.category_name || 'Other',
-      ])
-    );
+    const liveCategories = await fetchJSON(getXtreamApiUrl(cfg, 'get_live_categories'));
+    const vodCategories = await fetchJSON(getXtreamApiUrl(cfg, 'get_vod_categories')).catch(() => []);
+    const seriesCategories = await fetchJSON(getXtreamApiUrl(cfg, 'get_series_categories')).catch(() => []);
+    const liveCategoryMap = buildCategoryMap(liveCategories);
+    const vodCategoryMap = buildCategoryMap(vodCategories);
+    const seriesCategoryMap = buildCategoryMap(seriesCategories);
 
     setLoadingProgress((current) => ({
       ...current,
-      message: 'Loading live channels',
-      detail: 'Downloading the live stream catalog. Large accounts can take several seconds.',
+      message: 'Loading library',
+      detail: 'Downloading live channels, movies, and series from the provider catalog.',
     }));
     const streams = await fetchJSON(getXtreamApiUrl(cfg, 'get_live_streams'));
     if (!Array.isArray(streams)) throw new Error('Provider did not return a valid live channel list.');
 
+    const vodStreams = await fetchJSON(getXtreamApiUrl(cfg, 'get_vod_streams')).catch(() => []);
+    const seriesStreams = await fetchJSON(getXtreamApiUrl(cfg, 'get_series')).catch(() => []);
     const baseUrl = getXtreamBaseUrl(cfg);
-    return streams
+
+    const liveItems = streams
       .filter((stream) => stream.stream_id && stream.name && !isXtreamDivider(stream.name))
-      .map((stream) => {
-        return {
-          name: stream.name,
-          logo: stream.stream_icon || '',
-          group: categoryMap.get(String(stream.category_id)) || 'Other',
-          epgId: stream.epg_channel_id || stream.name,
-          epgAliases: uniqueValues([
-            stream.epg_channel_id,
-            stream.name,
-            stripChannelQuality(stream.name),
-            stripChannelPrefix(stripChannelQuality(stream.name)),
-          ]),
-          streamId: stream.stream_id,
-          url: `${baseUrl}/live/${cfg.xtreamUser}/${cfg.xtreamPass}/${stream.stream_id}.m3u8`,
-        };
-      });
+      .map((stream) => ({
+        name: stream.name,
+        logo: stream.stream_icon || '',
+        group: liveCategoryMap.get(String(stream.category_id)) || 'Other',
+        contentType: 'live',
+        epgId: stream.epg_channel_id || stream.name,
+        epgAliases: uniqueValues([
+          stream.epg_channel_id,
+          stream.name,
+          stripChannelQuality(stream.name),
+          stripChannelPrefix(stripChannelQuality(stream.name)),
+        ]),
+        streamId: stream.stream_id,
+        url: `${baseUrl}/live/${cfg.xtreamUser}/${cfg.xtreamPass}/${stream.stream_id}.m3u8`,
+      }));
+
+    const movieItems = (Array.isArray(vodStreams) ? vodStreams : [])
+      .filter((stream) => stream.stream_id && stream.name)
+      .map((stream) => ({
+        name: stream.name,
+        logo: stream.stream_icon || '',
+        group: vodCategoryMap.get(String(stream.category_id)) || 'Movies',
+        contentType: 'movie',
+        streamId: stream.stream_id,
+        url: `${baseUrl}/movie/${cfg.xtreamUser}/${cfg.xtreamPass}/${stream.stream_id}.${stream.container_extension || 'mp4'}`,
+      }));
+
+    const seriesItems = (Array.isArray(seriesStreams) ? seriesStreams : [])
+      .filter((series) => series.series_id && series.name)
+      .map((series) => ({
+        name: series.name,
+        logo: series.cover || series.stream_icon || '',
+        group: seriesCategoryMap.get(String(series.category_id)) || 'Series',
+        contentType: 'series',
+        seriesId: series.series_id,
+        url: '',
+      }));
+
+    return [...liveItems, ...movieItems, ...seriesItems];
+  };
+
+  const resolvePlayableChannel = async (channel, cfg = config) => {
+    if (channel?.contentType !== 'series' || channel.url || !canUseXtreamApi(cfg)) return channel;
+
+    const info = await fetchJSON(getXtreamApiUrl(cfg, 'get_series_info', { series_id: channel.seriesId }));
+    const seasons = Object.values(info?.episodes || {}).flat();
+    const episode = seasons.find((item) => item?.id);
+    if (!episode) throw new Error('No playable episodes were returned for this series.');
+
+    const baseUrl = getXtreamBaseUrl(cfg);
+    return {
+      ...channel,
+      name: `${channel.name} · S${episode.season || '?'} E${episode.episode_num || '?'}`,
+      episodeTitle: episode.title || channel.name,
+      url: `${baseUrl}/series/${cfg.xtreamUser}/${cfg.xtreamPass}/${episode.id}.${episode.container_extension || 'mp4'}`,
+    };
+  };
+
+  const handleSelectChannel = async (channel) => {
+    try {
+      setError(null);
+      setSelectedChannel(await resolvePlayableChannel(channel));
+    } catch (err) {
+      setError('Failed to load series: ' + getFriendlyError(err));
+    }
   };
 
   const fetchXtreamChannelEpg = async (channel, cfg) => {
@@ -361,7 +427,7 @@ function App() {
     return err?.message || 'Unknown error';
   };
 
-  const getChannelKey = (channel) => `${channel.name}|${channel.group}|${channel.url}`;
+  const getChannelKey = (channel) => `${channel.name}|${channel.group}|${channel.contentType || 'live'}|${channel.streamId || channel.seriesId || channel.url}`;
 
   const isFavorite = (channel) => channel && favorites.includes(getChannelKey(channel));
 
@@ -475,7 +541,7 @@ function App() {
           <div className="brand-mark">OS</div>
           <div>
             <h1>OpenStreamPlayer</h1>
-            <p>{channels.length ? `${channels.length} channels loaded` : 'Open IPTV player'}</p>
+            <p>{channels.length ? `${channels.length} items loaded` : 'Open IPTV player'}</p>
           </div>
         </div>
         <div className="header-buttons">
@@ -550,7 +616,7 @@ function App() {
           <ChannelList
             channels={channels}
             selectedChannel={selectedChannel}
-            onSelect={setSelectedChannel}
+            onSelect={handleSelectChannel}
             favorites={favorites}
             onToggleFavorite={toggleFavorite}
             loading={loading}

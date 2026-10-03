@@ -1,13 +1,16 @@
 import React, { useState, useEffect } from 'react';
 import '../styles/Settings.css';
 
+const DEFAULT_M3U_URL = 'https://iptv-org.github.io/iptv/index.m3u';
+const DEFAULT_EPG_URL = '';
+
 function Settings({ isOpen, onClose, onSave }) {
-  const [configMode, setConfigMode] = useState('xtream'); // 'xtream' or 'm3u'
+  const [configMode, setConfigMode] = useState('m3u'); // 'xtream' or 'm3u'
   const [xtreamServer, setXtreamServer] = useState('');
   const [xtreamUser, setXtreamUser] = useState('');
   const [xtreamPass, setXtreamPass] = useState('');
-  const [m3uUrl, setM3uUrl] = useState('');
-  const [epgUrl, setEpgUrl] = useState('');
+  const [m3uUrl, setM3uUrl] = useState(DEFAULT_M3U_URL);
+  const [epgUrl, setEpgUrl] = useState(DEFAULT_EPG_URL);
   const [fontSize, setFontSize] = useState('compact');
   const [saving, setSaving] = useState(false);
 
@@ -15,13 +18,18 @@ function Settings({ isOpen, onClose, onSave }) {
     const stored = localStorage.getItem('streamPlayerConfig');
     if (stored) {
       const config = JSON.parse(stored);
-      setConfigMode(config.configMode || 'xtream');
+      setConfigMode(config.configMode || 'm3u');
       setXtreamServer(config.xtreamServer || '');
       setXtreamUser(config.xtreamUser || '');
       setXtreamPass(config.xtreamPass || '');
-      setM3uUrl(config.m3uUrl || '');
-      setEpgUrl(config.epgUrl || '');
+      setM3uUrl(config.m3uUrl || DEFAULT_M3U_URL);
+      setEpgUrl(config.epgUrl || DEFAULT_EPG_URL);
       setFontSize(config.fontSize || 'compact');
+    } else {
+      setConfigMode('m3u');
+      setM3uUrl(DEFAULT_M3U_URL);
+      setEpgUrl(DEFAULT_EPG_URL);
+      setFontSize('compact');
     }
   }, [isOpen]);
 
@@ -119,7 +127,7 @@ function Settings({ isOpen, onClose, onSave }) {
                 <label>M3U Playlist URL</label>
                 <input
                   type="text"
-                  placeholder="http://your-service.com/get.php?username=USER&password=PASS&type=m3u_plus&output=mpegts"
+                  placeholder="https://iptv-org.github.io/iptv/index.m3u"
                   value={m3uUrl}
                   onChange={(e) => setM3uUrl(e.target.value)}
                 />
@@ -133,7 +141,7 @@ function Settings({ isOpen, onClose, onSave }) {
               <label>EPG URL (Optional)</label>
               <input
                 type="text"
-                placeholder="http://your-service.com/xmltv.php?username=USER&password=PASS"
+                placeholder="Optional XMLTV URL"
                 value={epgUrl}
                 onChange={(e) => setEpgUrl(e.target.value)}
               />

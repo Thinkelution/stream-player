@@ -5,7 +5,9 @@ OpenStreamPlayer is a native Electron app for streaming M3U8/IPTV content with E
 ## Features
 
 - 🎬 Play M3U8 playlists and IPTV streams
+- 🎞️ Browse Xtream live TV, movies, and series catalogs
 - 📺 EPG/Electronic Program Guide integration
+- ⚙️ Custom live controls with Stop, quality, CC, mute, volume, and fullscreen
 - ⚡ Xtream API loading for providers with slow M3U exports
 - 🔍 Search, filter, and favorite channels
 - 📱 Responsive modern interface with loading and empty states
@@ -65,16 +67,15 @@ then requires `codesign --verify --deep --strict` to pass before packaging. It u
 an available Developer ID identity, otherwise an ad-hoc identity. Ad-hoc releases
 still need the first-launch approval above. Signing alone does not notarize an app.
 
-Release builds leave the M3U/EPG defaults empty so local `.env` credentials are not
-embedded. Configure your source in the app's Settings after installing.
+Release builds prefill Settings with the public [iptv-org](https://github.com/iptv-org/iptv) playlist URL so first launch has an open sample source. EPG remains optional because public guide URLs vary by source. Configure your own legal playlist, XMLTV guide, or Xtream source in Settings for everyday use.
 
 Before uploading the new version, mount its final DMG and verify the app inside:
 
 ```bash
-hdiutil attach -nobrowse -readonly dist/OpenStreamPlayer-0.1.12-arm64.dmg
-codesign --verify --deep --strict --verbose=2 "/Volumes/OpenStreamPlayer 0.1.12-arm64/OpenStreamPlayer.app"
-hdiutil detach "/Volumes/OpenStreamPlayer 0.1.12-arm64"
-shasum -a 256 dist/OpenStreamPlayer-0.1.12-arm64.dmg
+hdiutil attach -nobrowse -readonly dist/OpenStreamPlayer-0.1.13-arm64.dmg
+codesign --verify --deep --strict --verbose=2 "/Volumes/OpenStreamPlayer 0.1.13-arm64/OpenStreamPlayer.app"
+hdiutil detach "/Volumes/OpenStreamPlayer 0.1.13-arm64"
+shasum -a 256 dist/OpenStreamPlayer-0.1.13-arm64.dmg
 ```
 
 Publish the DMG under the matching GitHub release tag, then update the version and
@@ -124,9 +125,10 @@ npm run build
 ## How It Works
 
 1. **M3U Playlist Parsing**: Fetches and parses M3U playlist format with channel metadata
-2. **HLS Streaming**: Uses HLS.js for adaptive bitrate streaming
-3. **EPG Integration**: Fetches and displays program guide data in XMLTV format
-4. **Channel Management**: Search, filter, favorite, and organize channels by category
+2. **Xtream Catalog Loading**: Fetches live channels, VOD movies, and series metadata through Xtream Codes-compatible APIs
+3. **HLS Streaming**: Uses HLS.js for adaptive bitrate streaming, quality selection, and subtitles when available
+4. **EPG Integration**: Fetches and displays program guide data in XMLTV format
+5. **Channel Management**: Search, filter, favorite, and organize channels by category
 
 ## License
 
@@ -134,4 +136,4 @@ MIT
 
 ## Privacy
 
-This application connects to your configured IPTV provider. Ensure you have the appropriate rights to access streams.
+This application connects to your configured IPTV provider or playlist URL. Ensure you have the appropriate rights to access streams. The default public playlist is provided by the [iptv-org](https://github.com/iptv-org/iptv) community project; check their repository for their terms, sources, and contribution guidelines. If you use public XMLTV data, review the [iptv-org EPG](https://github.com/iptv-org/epg) project as well.

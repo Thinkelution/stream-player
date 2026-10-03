@@ -8,6 +8,7 @@ function ChannelList({ channels, selectedChannel, onSelect, favorites, onToggleF
   const [scrollTop, setScrollTop] = useState(0);
   const [viewportHeight, setViewportHeight] = useState(0);
   const [selectedGroup, setSelectedGroup] = useState('All');
+  const [selectedType, setSelectedType] = useState('all');
   const deferredSearchTerm = useDeferredValue(searchTerm);
 
   const getChannelKey = (channel) => `${channel.name}|${channel.group}|${channel.url}`;
@@ -16,9 +17,11 @@ function ChannelList({ channels, selectedChannel, onSelect, favorites, onToggleF
 
   const groups = useMemo(() => {
     const groupSet = new Set(['All', 'Favorites']);
-    channels.forEach((ch) => groupSet.add(ch.group));
+    channels
+      .filter((ch) => selectedType === 'all' || (ch.contentType || 'live') === selectedType)
+      .forEach((ch) => groupSet.add(ch.group));
     return Array.from(groupSet).filter((group) => group !== 'Favorites' || favorites.length > 0);
-  }, [channels, favorites.length]);
+  }, [channels, favorites.length, selectedType]);
 
   const indexedChannels = useMemo(() => {
     return channels.map((channel) => ({
@@ -33,16 +36,17 @@ function ChannelList({ channels, selectedChannel, onSelect, favorites, onToggleF
 
     return indexedChannels.filter(({ channel: ch, key, searchName }) => {
       const matchesSearch = !normalizedSearch || searchName.includes(normalizedSearch);
+      const matchesType = selectedType === 'all' || (ch.contentType || 'live') === selectedType;
       const matchesGroup = selectedGroup === 'All'
         || (selectedGroup === 'Favorites' && favoriteSet.has(key))
         || ch.group === selectedGroup;
-      return matchesSearch && matchesGroup;
+      return matchesSearch && matchesType && matchesGroup;
     }).map(({ channel }) => channel);
-  }, [indexedChannels, deferredSearchTerm, selectedGroup, favoriteSet]);
+  }, [indexedChannels, deferredSearchTerm, selectedGroup, selectedType, favoriteSet]);
 
   useEffect(() => {
     setScrollTop(0);
-  }, [deferredSearchTerm, selectedGroup]);
+  }, [deferredSearchTerm, selectedGroup, selectedType]);
 
   const virtualRows = useMemo(() => {
     const visibleCount = Math.ceil((viewportHeight || 1) / ROW_HEIGHT);
@@ -57,6 +61,25 @@ function ChannelList({ channels, selectedChannel, onSelect, favorites, onToggleF
     };
   }, [filtered, scrollTop, viewportHeight]);
 
+  const typeCounts = useMemo(() => channels.reduce((counts, channel) => {
+    const type = channel.contentType || 'live';
+    counts[type] = (counts[type] || 0) + 1;
+    return counts;
+  }, { live: 0, movie: 0, series: 0 }), [channels]);
+
+  const typeFilters = [
+    ['all', `All ${channels.length}`],
+    ['live', `Live ${typeCounts.live || 0}`],
+    ['movie', `Movies ${typeCounts.movie || 0}`],
+    ['series', `Series ${typeCounts.series || 0}`],
+  ].filter(([type, label]) => type === 'all' || !label.endsWith(' 0'));
+
+  const typeLabel = (type) => {
+    if ((type || 'live') === 'movie') return 'Movie';
+    if (type === 'series') return 'Series';
+    return 'Live';
+  };
+
   const groupLabel = (group) => {
     if (group === 'All') return `All ${channels.length}`;
     if (group === 'Favorites') return `Favorites ${favorites.length}`;
@@ -67,10 +90,25 @@ function ChannelList({ channels, selectedChannel, onSelect, favorites, onToggleF
     <div className="channel-list">
       <div className="sidebar-header">
         <div>
-          <h2>Channels</h2>
+          <h2>Library</h2>
           <p>{filtered.length} showing</p>
         </div>
         {loading && <span className="mini-spinner" aria-label="Loading channels" />}
+      </div>
+
+      <div className="type-filter">
+        {typeFilters.map(([type, label]) => (
+          <button
+            key={type}
+            className={`type-btn ${selectedType === type ? 'active' : ''}`}
+            onClick={() => {
+              setSelectedType(type);
+              setSelectedGroup('All');
+            }}
+          >
+            {label}
+          </button>
+        ))}
       </div>
 
       <div className="search-box">
@@ -121,7 +159,7 @@ function ChannelList({ channels, selectedChannel, onSelect, favorites, onToggleF
                 </div>
                 <div className="channel-copy">
                   <span className="channel-name">{channel.name}</span>
-                  <span className="channel-group">{channel.group}</span>
+                  <span className="channel-group"><b>{typeLabel(channel.contentType)}</b> · {channel.group}</span>
                 </div>
                 <button
                   className={`favorite-btn ${isFavorite(channel) ? 'active' : ''}`}

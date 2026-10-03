@@ -408,6 +408,31 @@ button {
   box-shadow: 0 0 0 3px rgba(20, 184, 166, 0.13);
 }
 
+.type-filter {
+  display: flex;
+  gap: 0.45rem;
+  padding: 0 1rem 0.45rem;
+  overflow-x: auto;
+}
+
+.type-btn {
+  flex: 0 0 auto;
+  padding: 0.42rem 0.65rem;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.05);
+  color: var(--muted);
+  cursor: pointer;
+  font-size: 0.78rem;
+  font-weight: 800;
+}
+
+.type-btn.active {
+  border-color: rgba(20, 184, 166, 0.72);
+  background: rgba(20, 184, 166, 0.16);
+  color: #dffdf8;
+}
+
 .group-filter {
   display: flex;
   gap: 0.45rem;
@@ -492,6 +517,10 @@ button {
 .channel-name {
   font-size: 0.86rem;
   font-weight: 750;
+}
+
+.channel-group b {
+  color: var(--accent);
 }
 
 .channel-group {
@@ -774,7 +803,8 @@ button {
   z-index: 3;
   display: flex;
   align-items: center;
-  gap: 0.55rem;
+  justify-content: space-between;
+  gap: 0.75rem;
   padding: 0.55rem;
   border: 1px solid rgba(148, 163, 184, 0.24);
   border-radius: 0.85rem;
@@ -786,26 +816,52 @@ button {
   transition: opacity 0.2s ease, transform 0.2s ease;
 }
 
-.control-button {
+.control-left,
+.control-right {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  min-width: 0;
+}
+
+.control-right {
+  margin-left: auto;
+}
+
+.icon-control,
+.control-select {
   min-height: 2rem;
-  padding: 0.35rem 0.6rem;
   border: 1px solid rgba(148, 163, 184, 0.28);
   border-radius: 0.6rem;
   background: rgba(255, 255, 255, 0.07);
   color: var(--text);
   cursor: pointer;
-  font-size: 0.78rem;
+  font-size: 0.82rem;
   font-weight: 800;
   transition: background 0.16s ease, border-color 0.16s ease, transform 0.16s ease;
 }
 
-.control-button:hover:not(:disabled) {
+.icon-control {
+  display: inline-grid;
+  place-items: center;
+  width: 2.2rem;
+  padding: 0;
+}
+
+.control-select {
+  max-width: 7rem;
+  padding: 0.35rem 0.55rem;
+}
+
+.icon-control:hover:not(:disabled),
+.control-select:hover:not(:disabled) {
   transform: translateY(-1px);
   border-color: rgba(20, 184, 166, 0.62);
   background: rgba(20, 184, 166, 0.16);
 }
 
-.control-button:disabled {
+.icon-control:disabled,
+.control-select:disabled {
   cursor: not-allowed;
   opacity: 0.5;
 }
@@ -822,6 +878,11 @@ button {
   color: #fecaca;
 }
 
+.volume-slider {
+  width: 5.8rem;
+  accent-color: var(--accent);
+  cursor: pointer;
+}
 
 .player-controls.is-hidden {
   opacity: 0;
@@ -835,6 +896,22 @@ button {
   opacity: 1;
   pointer-events: auto;
   transform: translateY(0);
+}
+
+@media (max-width: 700px) {
+  .player-controls {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .control-right {
+    margin-left: 0;
+    flex-wrap: wrap;
+  }
+
+  .volume-slider {
+    width: 4.8rem;
+  }
 }
 
 .stopped-overlay {
