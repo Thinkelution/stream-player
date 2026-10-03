@@ -203,12 +203,11 @@ function App() {
     return streams
       .filter((stream) => stream.stream_id && stream.name)
       .map((stream) => {
-        const extension = stream.container_extension || 'ts';
         return {
           name: stream.name,
           logo: stream.stream_icon || '',
           group: categoryMap.get(String(stream.category_id)) || 'Other',
-          url: `${baseUrl}/live/${cfg.xtreamUser}/${cfg.xtreamPass}/${stream.stream_id}.${extension}`,
+          url: `${baseUrl}/live/${cfg.xtreamUser}/${cfg.xtreamPass}/${stream.stream_id}.m3u8`,
         };
       });
   };

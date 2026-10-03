@@ -1,11 +1,19 @@
 import React, { useEffect, useRef, useState } from 'react';
 import HLS from 'hls.js';
 
+const PLAYBACK_START_TIMEOUT_MS = 20000;
+
 function VideoPlayer({ channel, isFavorite, onToggleFavorite }) {
   const videoRef = useRef(null);
   const hlsRef = useRef(null);
+  const startTimerRef = useRef(null);
   const [isBuffering, setIsBuffering] = useState(true);
   const [playbackError, setPlaybackError] = useState(null);
+
+  const markPlaybackStarted = () => {
+    window.clearTimeout(startTimerRef.current);
+    setIsBuffering(false);
+  };
 
   useEffect(() => {
     if (!channel || !videoRef.current) return;
@@ -14,6 +22,11 @@ function VideoPlayer({ channel, isFavorite, onToggleFavorite }) {
     const url = channel.url;
     setIsBuffering(true);
     setPlaybackError(null);
+
+    startTimerRef.current = window.setTimeout(() => {
+      setPlaybackError('This stream did not start within 20 seconds. Try another channel or refresh the playlist.');
+      setIsBuffering(false);
+    }, PLAYBACK_START_TIMEOUT_MS);
 
     if (HLS.isSupported()) {
       if (hlsRef.current) hlsRef.current.destroy();
@@ -24,7 +37,7 @@ function VideoPlayer({ channel, isFavorite, onToggleFavorite }) {
 
       hlsRef.current.on(HLS.Events.MANIFEST_PARSED, () => {
         video.play().catch(() => {
-          setIsBuffering(false);
+          markPlaybackStarted();
         });
       });
 
@@ -37,17 +50,18 @@ function VideoPlayer({ channel, isFavorite, onToggleFavorite }) {
       });
     } else if (video.canPlayType('application/vnd.apple.mpegurl')) {
       video.src = url;
-      video.play().catch(() => {
-        setIsBuffering(false);
-      });
+      video.play().catch(markPlaybackStarted);
     } else {
       setPlaybackError('This stream format is not supported on this device.');
       setIsBuffering(false);
     }
 
     return () => {
+      window.clearTimeout(startTimerRef.current);
       if (hlsRef.current) hlsRef.current.destroy();
     };
+    // markPlaybackStarted only mutates local playback state; channel changes reset the source.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [channel]);
 
   return (
@@ -88,8 +102,8 @@ function VideoPlayer({ channel, isFavorite, onToggleFavorite }) {
           ref={videoRef}
           controls
           autoPlay
-          onCanPlay={() => setIsBuffering(false)}
-          onPlaying={() => setIsBuffering(false)}
+          onCanPlay={markPlaybackStarted}
+          onPlaying={markPlaybackStarted}
           onWaiting={() => setIsBuffering(true)}
           onError={() => {
             setPlaybackError('Unable to play this stream. Try another channel or refresh the playlist.');
