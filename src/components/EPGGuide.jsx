@@ -2,7 +2,14 @@ import React, { useMemo } from 'react';
 
 function EPGGuide({ channel, epgData, loading }) {
   const parseXmltvDate = (value) => {
-    const match = String(value || '').match(/^(\d{4})(\d{2})(\d{2})(\d{2})(\d{2})(\d{2})(?:\s*([+-]\d{4}))?/);
+    const raw = String(value || '');
+    const xtreamMatch = raw.match(/^(\d{4})-(\d{2})-(\d{2})\s+(\d{2}):(\d{2}):(\d{2})/);
+    if (xtreamMatch) {
+      const [, year, month, day, hour, minute, second] = xtreamMatch;
+      return new Date(Number(year), Number(month) - 1, Number(day), Number(hour), Number(minute), Number(second));
+    }
+
+    const match = raw.match(/^(\d{4})(\d{2})(\d{2})(\d{2})(\d{2})(\d{2})(?:\s*([+-]\d{4}))?/);
     if (!match) return new Date(value || 0);
 
     const [, year, month, day, hour, minute, second, offset] = match;

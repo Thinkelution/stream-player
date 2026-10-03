@@ -73,6 +73,17 @@ function App() {
     return () => window.clearInterval(timer);
   }, [loading, loadingProgress.startedAt]);
 
+  useEffect(() => {
+    if (!selectedChannel?.streamId || !canUseXtreamApi(config)) return;
+
+    const key = selectedChannel.epgId || selectedChannel.name;
+    if (epgData[key]?.length) return;
+
+    fetchXtreamChannelEpg(selectedChannel, config);
+    // Fetch guide data lazily when the user selects a channel.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedChannel, config]);
+
   const getM3uUrl = (cfg) => {
     if (!cfg) cfg = config;
     if (!cfg) return process.env.REACT_APP_M3U_URL;
@@ -85,7 +96,7 @@ function App() {
 
   const getXtreamBaseUrl = (cfg) => (cfg?.xtreamServer || '').replace(/\/+$/, '');
 
-  const getXtreamApiUrl = (cfg, action = '') => {
+  const getXtreamApiUrl = (cfg, action = '', extraParams = {}) => {
     const baseUrl = getXtreamBaseUrl(cfg);
     const params = new URLSearchParams({
       username: cfg.xtreamUser,
@@ -93,6 +104,7 @@ function App() {
     });
 
     if (action) params.set('action', action);
+    Object.entries(extraParams).forEach(([key, value]) => params.set(key, value));
     return `${baseUrl}/player_api.php?${params.toString()}`;
   };
 
@@ -214,9 +226,51 @@ function App() {
           logo: stream.stream_icon || '',
           group: categoryMap.get(String(stream.category_id)) || 'Other',
           epgId: stream.epg_channel_id || stream.name,
+          streamId: stream.stream_id,
           url: `${baseUrl}/live/${cfg.xtreamUser}/${cfg.xtreamPass}/${stream.stream_id}.m3u8`,
         };
       });
+  };
+
+  const fetchXtreamChannelEpg = async (channel, cfg) => {
+    try {
+      setEpgLoading(true);
+      const response = await fetchJSON(getXtreamApiUrl(cfg, 'get_short_epg', {
+        stream_id: channel.streamId,
+        limit: 6,
+      }));
+      const listings = Array.isArray(response?.epg_listings) ? response.epg_listings : [];
+      const programs = listings.map((item) => ({
+        start: item.start,
+        stop: item.end,
+        title: decodeBase64Text(item.title) || 'N/A',
+        description: decodeBase64Text(item.description),
+      }));
+      const key = channel.epgId || channel.name;
+      setEpgData((current) => ({
+        ...current,
+        [key]: programs,
+        [channel.name]: programs,
+      }));
+    } catch (err) {
+      console.error('Failed to load Xtream channel EPG:', err);
+    } finally {
+      setEpgLoading(false);
+    }
+  };
+
+  const decodeBase64Text = (value) => {
+    if (!value) return '';
+
+    try {
+      return decodeURIComponent(escape(window.atob(value)));
+    } catch (err) {
+      try {
+        return window.atob(value);
+      } catch (fallbackErr) {
+        return value;
+      }
+    }
   };
 
   const isXtreamDivider = (name) => /^\s*#{3,}.*#{3,}\s*$/.test(name);
