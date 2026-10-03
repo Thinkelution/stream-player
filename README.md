@@ -62,7 +62,7 @@ a new version instead.
 ### Automated desktop builds
 
 GitHub Actions builds desktop installers from `.github/workflows/release-builds.yml`.
-Push a version tag such as `v0.1.15` to build macOS, Windows, and Linux artifacts and attach them to the GitHub release. You can also run **Build desktop releases** manually from the Actions tab to produce downloadable test artifacts without creating a release.
+Push a version tag such as `v0.1.16` to build macOS, Windows, and Linux artifacts and attach them to the GitHub release. You can also run **Build desktop releases** manually from the Actions tab to produce downloadable test artifacts without creating a release.
 
 The workflow currently produces:
 
@@ -85,10 +85,10 @@ Release builds prefill Settings with the public [iptv-org](https://github.com/ip
 Before uploading the new version, mount its final DMG and verify the app inside:
 
 ```bash
-hdiutil attach -nobrowse -readonly dist/OpenStreamPlayer-0.1.15-arm64.dmg
-codesign --verify --deep --strict --verbose=2 "/Volumes/OpenStreamPlayer 0.1.15-arm64/OpenStreamPlayer.app"
-hdiutil detach "/Volumes/OpenStreamPlayer 0.1.15-arm64"
-shasum -a 256 dist/OpenStreamPlayer-0.1.15-arm64.dmg
+hdiutil attach -nobrowse -readonly dist/OpenStreamPlayer-0.1.16-arm64.dmg
+codesign --verify --deep --strict --verbose=2 "/Volumes/OpenStreamPlayer 0.1.16-arm64/OpenStreamPlayer.app"
+hdiutil detach "/Volumes/OpenStreamPlayer 0.1.16-arm64"
+shasum -a 256 dist/OpenStreamPlayer-0.1.16-arm64.dmg
 ```
 
 Publish the DMG under the matching GitHub release tag, then update the version and

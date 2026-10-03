@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import axios from 'axios';
 import './App.css';
 import ChannelList from './components/ChannelList';
@@ -46,6 +46,53 @@ const getGuideKeys = (channel) => {
   return uniqueValues([...rawKeys, ...normalizedKeys]);
 };
 
+
+const parseGuideDate = (value) => {
+  const raw = String(value || '');
+  const xtreamMatch = raw.match(/^(\d{4})-(\d{2})-(\d{2})\s+(\d{2}):(\d{2}):(\d{2})/);
+  if (xtreamMatch) {
+    const [, year, month, day, hour, minute, second] = xtreamMatch;
+    return new Date(Number(year), Number(month) - 1, Number(day), Number(hour), Number(minute), Number(second));
+  }
+
+  const match = raw.match(/^(\d{4})(\d{2})(\d{2})(\d{2})(\d{2})(\d{2})(?:\s*([+-]\d{4}))?/);
+  if (!match) return new Date(value || 0);
+
+  const [, year, month, day, hour, minute, second, offset] = match;
+  const tz = offset ? `${offset.slice(0, 3)}:${offset.slice(3)}` : 'Z';
+  return new Date(`${year}-${month}-${day}T${hour}:${minute}:${second}${tz}`);
+};
+
+const formatGuideTime = (date) => date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+
+const getCurrentProgramsForChannel = (channel, epgData, limit = 4) => {
+  if (!channel) return [];
+
+  const programs = getGuideKeys(channel)
+    .map((key) => epgData[key])
+    .find((items) => Array.isArray(items) && items.length) || [];
+  if (!programs.length) return [];
+
+  const now = new Date();
+
+  return programs
+    .map((prog) => ({
+      ...prog,
+      startDate: parseGuideDate(prog.start),
+      stopDate: parseGuideDate(prog.stop),
+    }))
+    .filter((prog) => prog.stopDate >= now)
+    .sort((a, b) => a.startDate - b.startDate)
+    .slice(0, limit)
+    .map((prog) => {
+      const isCurrent = prog.startDate <= now && prog.stopDate >= now;
+      return {
+        ...prog,
+        label: isCurrent ? 'Now' : formatGuideTime(prog.startDate),
+      };
+    });
+};
+
 const initialLoadingProgress = {
   message: 'Preparing playlist request',
   detail: 'Checking your saved source and starting the connection.',
@@ -55,6 +102,8 @@ const initialLoadingProgress = {
 
 function App() {
   const [channels, setChannels] = useState([]);
+  const [activeChannels, setActiveChannels] = useState([]);
+  const [activeChannelListLabel, setActiveChannelListLabel] = useState('Channels');
   const [selectedChannel, setSelectedChannel] = useState(null);
   const [epgData, setEpgData] = useState({});
   const [loading, setLoading] = useState(true);
@@ -76,6 +125,17 @@ function App() {
       return [];
     }
   });
+
+
+  const fullscreenPrograms = useMemo(
+    () => getCurrentProgramsForChannel(selectedChannel, epgData, 2),
+    [selectedChannel, epgData]
+  );
+
+  const handleVisibleChannelsChange = useCallback((visibleChannels, label) => {
+    setActiveChannels(visibleChannels);
+    setActiveChannelListLabel(label || 'Channels');
+  }, []);
 
   useEffect(() => {
     const stored = localStorage.getItem('streamPlayerConfig');
@@ -330,7 +390,8 @@ function App() {
 
   useEffect(() => {
     const handleChannelKeydown = (event) => {
-      if (settingsOpen || !channels.length || !selectedChannel) return;
+      const navigationChannels = activeChannels.length ? activeChannels : channels;
+      if (settingsOpen || !navigationChannels.length || !selectedChannel) return;
       if (!['ArrowUp', 'ArrowDown'].includes(event.key)) return;
 
       const target = event.target;
@@ -342,20 +403,20 @@ function App() {
 
       event.preventDefault();
       const selectedKey = getChannelKey(selectedChannel);
-      const currentIndex = channels.findIndex((item) => getChannelKey(item) === selectedKey);
+      const currentIndex = navigationChannels.findIndex((item) => getChannelKey(item) === selectedKey);
       const safeIndex = currentIndex === -1 ? 0 : currentIndex;
       const nextIndex = event.key === 'ArrowDown'
-        ? Math.min(channels.length - 1, safeIndex + 1)
+        ? Math.min(navigationChannels.length - 1, safeIndex + 1)
         : Math.max(0, safeIndex - 1);
 
-      if (nextIndex !== safeIndex) handleSelectChannel(channels[nextIndex]);
+      if (nextIndex !== safeIndex) handleSelectChannel(navigationChannels[nextIndex]);
     };
 
     window.addEventListener('keydown', handleChannelKeydown);
     return () => window.removeEventListener('keydown', handleChannelKeydown);
     // Arrow keys should follow the current loaded channel list while ignoring text fields.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [channels, selectedChannel, settingsOpen]);
+  }, [channels, activeChannels, selectedChannel, settingsOpen]);
 
   const fetchXtreamChannelEpg = async (channel, cfg) => {
     try {
@@ -459,16 +520,53 @@ function App() {
 
   const getChannelKey = (channel) => `${channel.name}|${channel.group}|${channel.contentType || 'live'}|${channel.streamId || channel.seriesId || channel.url}`;
 
-  const isFavorite = (channel) => channel && favorites.includes(getChannelKey(channel));
+  const getLegacyChannelKey = (channel) => `${channel.name}|${channel.group}|${channel.url}`;
+
+  const getFavoriteKeys = (channel) => uniqueValues([
+    getChannelKey(channel),
+    getLegacyChannelKey(channel),
+  ]);
+
+  const isFavorite = (channel) => channel && getFavoriteKeys(channel).some((key) => favorites.includes(key));
+
+  useEffect(() => {
+    if (!channels.length || !favorites.length) return;
+
+    setFavorites((current) => {
+      const saved = new Set(current);
+      const matchedLegacyKeys = new Set();
+      const migrated = [];
+
+      channels.forEach((channel) => {
+        const canonicalKey = getChannelKey(channel);
+        const keys = getFavoriteKeys(channel);
+        if (keys.some((key) => saved.has(key))) {
+          migrated.push(canonicalKey);
+          keys.forEach((key) => matchedLegacyKeys.add(key));
+        }
+      });
+
+      const untouched = current.filter((key) => !matchedLegacyKeys.has(key));
+      const next = uniqueValues([...untouched, ...migrated]);
+      if (next.length === current.length && next.every((key, index) => key === current[index])) return current;
+
+      localStorage.setItem(FAVORITES_STORAGE_KEY, JSON.stringify(next));
+      return next;
+    });
+    // Reconcile old favorites keys after a playlist is loaded.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [channels]);
 
   const toggleFavorite = (channel) => {
     if (!channel) return;
 
-    const key = getChannelKey(channel);
+    const canonicalKey = getChannelKey(channel);
+    const matchingKeys = new Set(getFavoriteKeys(channel));
     setFavorites((current) => {
-      const next = current.includes(key)
-        ? current.filter((favorite) => favorite !== key)
-        : [...current, key];
+      const alreadyFavorite = current.some((favorite) => matchingKeys.has(favorite));
+      const next = alreadyFavorite
+        ? current.filter((favorite) => !matchingKeys.has(favorite))
+        : uniqueValues([...current, canonicalKey]);
 
       localStorage.setItem(FAVORITES_STORAGE_KEY, JSON.stringify(next));
       return next;
@@ -621,7 +719,9 @@ function App() {
             <>
               <VideoPlayer
                 channel={selectedChannel}
-                channels={channels}
+                channels={activeChannels.length ? activeChannels : channels}
+                channelListLabel={activeChannelListLabel}
+                fullscreenPrograms={fullscreenPrograms}
                 selectedChannel={selectedChannel}
                 onSelectChannel={handleSelectChannel}
                 getChannelKey={getChannelKey}
@@ -654,6 +754,8 @@ function App() {
             favorites={favorites}
             onToggleFavorite={toggleFavorite}
             loading={loading}
+            getFavoriteKeys={getFavoriteKeys}
+            onVisibleChannelsChange={handleVisibleChannelsChange}
           />
         </aside>
       </div>

@@ -1,9 +1,15 @@
-import React, { useState, useMemo, useDeferredValue, useEffect } from 'react';
+import React, { useState, useMemo, useDeferredValue, useEffect, useCallback } from 'react';
 
 const ROW_HEIGHT = 50;
 const OVERSCAN = 8;
 
-function ChannelList({ channels, selectedChannel, onSelect, favorites, onToggleFavorite, loading }) {
+const typeLabel = (type) => {
+  if ((type || 'live') === 'movie') return 'Movie';
+  if (type === 'series') return 'Series';
+  return 'Live';
+};
+
+function ChannelList({ channels, selectedChannel, onSelect, favorites, onToggleFavorite, loading, getFavoriteKeys, onVisibleChannelsChange }) {
   const [searchTerm, setSearchTerm] = useState('');
   const [scrollTop, setScrollTop] = useState(0);
   const [viewportHeight, setViewportHeight] = useState(0);
@@ -11,9 +17,10 @@ function ChannelList({ channels, selectedChannel, onSelect, favorites, onToggleF
   const [selectedType, setSelectedType] = useState('all');
   const deferredSearchTerm = useDeferredValue(searchTerm);
 
-  const getChannelKey = (channel) => `${channel.name}|${channel.group}|${channel.contentType || 'live'}|${channel.streamId || channel.seriesId || channel.url}`;
+  const getChannelKey = useCallback((channel) => `${channel.name}|${channel.group}|${channel.contentType || 'live'}|${channel.streamId || channel.seriesId || channel.url}`, []);
+  const getKeysForFavorite = useCallback((channel) => getFavoriteKeys?.(channel) || [getChannelKey(channel), `${channel.name}|${channel.group}|${channel.url}`], [getFavoriteKeys, getChannelKey]);
   const favoriteSet = useMemo(() => new Set(favorites), [favorites]);
-  const isFavorite = (channel) => favoriteSet.has(getChannelKey(channel));
+  const isFavorite = (channel) => getKeysForFavorite(channel).some((key) => favoriteSet.has(key));
 
   const groups = useMemo(() => {
     const groupSet = new Set(['All', 'Favorites']);
@@ -29,7 +36,7 @@ function ChannelList({ channels, selectedChannel, onSelect, favorites, onToggleF
       key: getChannelKey(channel),
       searchName: channel.name.toLowerCase(),
     }));
-  }, [channels]);
+  }, [channels, getChannelKey]);
 
   const filtered = useMemo(() => {
     const normalizedSearch = deferredSearchTerm.trim().toLowerCase();
@@ -38,15 +45,22 @@ function ChannelList({ channels, selectedChannel, onSelect, favorites, onToggleF
       const matchesSearch = !normalizedSearch || searchName.includes(normalizedSearch);
       const matchesType = selectedType === 'all' || (ch.contentType || 'live') === selectedType;
       const matchesGroup = selectedGroup === 'All'
-        || (selectedGroup === 'Favorites' && favoriteSet.has(key))
+        || (selectedGroup === 'Favorites' && getKeysForFavorite(ch).some((favoriteKey) => favoriteSet.has(favoriteKey)))
         || ch.group === selectedGroup;
       return matchesSearch && matchesType && matchesGroup;
     }).map(({ channel }) => channel);
-  }, [indexedChannels, deferredSearchTerm, selectedGroup, selectedType, favoriteSet]);
+  }, [indexedChannels, deferredSearchTerm, selectedGroup, selectedType, favoriteSet, getKeysForFavorite]);
 
   useEffect(() => {
     setScrollTop(0);
   }, [deferredSearchTerm, selectedGroup, selectedType]);
+
+
+  useEffect(() => {
+    const typePrefix = selectedType === 'all' ? '' : `${typeLabel(selectedType)} · `;
+    const groupName = selectedGroup === 'All' ? 'All channels' : selectedGroup;
+    onVisibleChannelsChange?.(filtered, `${typePrefix}${groupName}`);
+  }, [filtered, selectedGroup, selectedType, onVisibleChannelsChange]);
 
   const virtualRows = useMemo(() => {
     const visibleCount = Math.ceil((viewportHeight || 1) / ROW_HEIGHT);
@@ -73,12 +87,6 @@ function ChannelList({ channels, selectedChannel, onSelect, favorites, onToggleF
     ['movie', `Movies ${typeCounts.movie || 0}`],
     ['series', `Series ${typeCounts.series || 0}`],
   ].filter(([type, label]) => type === 'all' || !label.endsWith(' 0'));
-
-  const typeLabel = (type) => {
-    if ((type || 'live') === 'movie') return 'Movie';
-    if (type === 'series') return 'Series';
-    return 'Live';
-  };
 
   const groupLabel = (group) => {
     if (group === 'All') return `All ${channels.length}`;

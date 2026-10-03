@@ -3,7 +3,7 @@ import HLS from 'hls.js';
 
 const PLAYBACK_START_TIMEOUT_MS = 20000;
 
-function VideoPlayer({ channel, channels = [], selectedChannel, onSelectChannel, isFavorite, onToggleFavorite, getChannelKey }) {
+function VideoPlayer({ channel, channels = [], channelListLabel = 'Channels', fullscreenPrograms = [], selectedChannel, onSelectChannel, isFavorite, onToggleFavorite, getChannelKey }) {
   const videoRef = useRef(null);
   const hlsRef = useRef(null);
   const startTimerRef = useRef(null);
@@ -415,8 +415,8 @@ function VideoPlayer({ channel, channels = [], selectedChannel, onSelectChannel,
             onMouseEnter={keepChannelDrawerOpen}
             onMouseLeave={hideChannelDrawerLater}
           >
-            <div className="fullscreen-drawer-heading">Channels</div>
-            <div className="fullscreen-drawer-hint">Move cursor to the right edge · ↑ ↓ changes channel</div>
+            <div className="fullscreen-drawer-heading">{channelListLabel}</div>
+            <div className="fullscreen-drawer-hint">Right edge drawer · ↑ ↓ stays in this list</div>
             <div className="fullscreen-channel-items">
               {fullscreenChannels.map((item) => {
                 const active = keyForChannel(item) === keyForChannel(selectedChannel || channel);
@@ -444,6 +444,16 @@ function VideoPlayer({ channel, channels = [], selectedChannel, onSelectChannel,
               ⏹
             </button>
           </div>
+          {fullscreenPrograms.length > 0 && (
+            <div className="fullscreen-control-guide" aria-label="Current guide">
+              {fullscreenPrograms.map((program, index) => (
+                <div key={`${program.label}-${program.title}-${index}`} className="fullscreen-guide-item">
+                  <span>{program.label}</span>
+                  <strong>{program.title}</strong>
+                </div>
+              ))}
+            </div>
+          )}
           <div className="control-right">
             <select className="control-select" value={selectedLevel} onChange={changeLevel} title="Bitrate / quality" aria-label="Bitrate / quality">
               <option value={-1}>Auto</option>
