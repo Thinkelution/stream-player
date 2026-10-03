@@ -7,12 +7,22 @@ import EPGGuide from './components/EPGGuide';
 import Settings from './components/Settings';
 
 const FAVORITES_STORAGE_KEY = 'openStreamPlayerFavorites';
+const PLAYLIST_TIMEOUT_MS = 30000;
+const EPG_TIMEOUT_MS = 20000;
+
+const initialLoadingProgress = {
+  message: 'Preparing playlist request',
+  detail: 'Checking your saved source and starting the connection.',
+  elapsedSeconds: 0,
+  startedAt: null,
+};
 
 function App() {
   const [channels, setChannels] = useState([]);
   const [selectedChannel, setSelectedChannel] = useState(null);
   const [epgData, setEpgData] = useState({});
   const [loading, setLoading] = useState(true);
+  const [loadingProgress, setLoadingProgress] = useState(initialLoadingProgress);
   const [epgLoading, setEpgLoading] = useState(false);
   const [error, setError] = useState(null);
   const [settingsOpen, setSettingsOpen] = useState(false);
@@ -39,6 +49,19 @@ function App() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  useEffect(() => {
+    if (!loading || !loadingProgress.startedAt) return undefined;
+
+    const timer = window.setInterval(() => {
+      setLoadingProgress((current) => ({
+        ...current,
+        elapsedSeconds: Math.floor((Date.now() - current.startedAt) / 1000),
+      }));
+    }, 1000);
+
+    return () => window.clearInterval(timer);
+  }, [loading, loadingProgress.startedAt]);
+
   const getM3uUrl = (cfg) => {
     if (!cfg) cfg = config;
     if (!cfg) return process.env.REACT_APP_M3U_URL;
@@ -62,6 +85,13 @@ function App() {
   const fetchPlaylist = async (cfg = null) => {
     try {
       setLoading(true);
+      setError(null);
+      setLoadingProgress({
+        message: 'Connecting to playlist',
+        detail: 'Requesting your M3U channel list. Slow providers can take a few seconds.',
+        elapsedSeconds: 0,
+        startedAt: Date.now(),
+      });
       const m3uUrl = getM3uUrl(cfg);
       if (!m3uUrl) throw new Error('No M3U URL configured');
 
@@ -70,10 +100,15 @@ function App() {
       if (window.electronAPI) {
         m3uContent = await window.electronAPI.fetchM3U(m3uUrl);
       } else {
-        const response = await axios.get(m3uUrl);
+        const response = await axios.get(m3uUrl, { timeout: PLAYLIST_TIMEOUT_MS });
         m3uContent = response.data;
       }
 
+      setLoadingProgress((current) => ({
+        ...current,
+        message: 'Parsing channels',
+        detail: 'Reading channel names, groups, logos, and stream URLs.',
+      }));
       const parsed = parseM3U(m3uContent);
       setChannels(parsed);
       if (parsed.length > 0) {
@@ -89,7 +124,7 @@ function App() {
       }
       setError(null);
     } catch (err) {
-      setError('Failed to load playlist: ' + err.message);
+      setError('Failed to load playlist: ' + getFriendlyError(err));
       console.error(err);
     } finally {
       setLoading(false);
@@ -110,7 +145,7 @@ function App() {
       if (window.electronAPI) {
         epgContent = await window.electronAPI.fetchEPG(epgUrl);
       } else {
-        const response = await axios.get(epgUrl);
+        const response = await axios.get(epgUrl, { timeout: EPG_TIMEOUT_MS });
         epgContent = response.data;
       }
 
@@ -121,6 +156,18 @@ function App() {
     } finally {
       setEpgLoading(false);
     }
+  };
+
+  const getFriendlyError = (err) => {
+    if (err?.code === 'ECONNABORTED' || /timeout/i.test(err?.message || '')) {
+      return 'The playlist server did not respond within 30 seconds. Check the URL or try again.';
+    }
+
+    if (/No M3U URL configured/i.test(err?.message || '')) {
+      return 'No M3U URL configured. Open Settings and add your playlist or Xtream details.';
+    }
+
+    return err?.message || 'Unknown error';
   };
 
   const getChannelKey = (channel) => `${channel.name}|${channel.group}|${channel.url}`;
@@ -233,8 +280,19 @@ function App() {
           {loading && channels.length === 0 ? (
             <div className="state-panel loading-panel">
               <div className="spinner" />
-              <h2>Loading playlist</h2>
-              <p>Fetching channels and preparing your guide.</p>
+              <div>
+                <h2>Loading playlist</h2>
+                <p>{loadingProgress.message}</p>
+              </div>
+              <div className="loading-progress">
+                <div className="progress-track">
+                  <div className="progress-bar" />
+                </div>
+                <div className="progress-meta">
+                  <span>{loadingProgress.detail}</span>
+                  <strong>{loadingProgress.elapsedSeconds}s</strong>
+                </div>
+              </div>
             </div>
           ) : selectedChannel ? (
             <>
@@ -246,10 +304,17 @@ function App() {
               <EPGGuide channel={selectedChannel} epgData={epgData} loading={epgLoading} />
             </>
           ) : (
-            <div className="state-panel empty-panel">
-              <h2>Add a playlist to start watching</h2>
-              <p>Open Settings, add your M3U or Xtream details, and your channels will appear here.</p>
-              <button className="btn btn-primary" onClick={() => setSettingsOpen(true)}>Open Settings</button>
+            <div className={`state-panel ${error ? 'error-panel' : 'empty-panel'}`}>
+              <h2>{error ? 'Playlist did not load' : 'Add a playlist to start watching'}</h2>
+              <p>{error || 'Open Settings, add your M3U or Xtream details, and your channels will appear here.'}</p>
+              <div className="state-actions">
+                <button className="btn btn-primary" onClick={() => fetchPlaylist()}>
+                  Try Again
+                </button>
+                <button className="btn btn-secondary" onClick={() => setSettingsOpen(true)}>
+                  Open Settings
+                </button>
+              </div>
             </div>
           )}
         </div>

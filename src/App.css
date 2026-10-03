@@ -507,6 +507,57 @@ button {
   line-height: 1.5;
 }
 
+.loading-progress {
+  display: grid;
+  gap: 0.75rem;
+  width: min(34rem, 100%);
+  margin-top: 0.45rem;
+}
+
+.progress-track {
+  position: relative;
+  height: 0.5rem;
+  overflow: hidden;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.progress-bar {
+  position: absolute;
+  inset: 0 auto 0 0;
+  width: 42%;
+  border-radius: inherit;
+  background: linear-gradient(90deg, var(--accent), #60a5fa);
+  animation: progress-slide 1.3s ease-in-out infinite;
+}
+
+.progress-meta {
+  display: flex;
+  justify-content: space-between;
+  gap: 1rem;
+  color: var(--muted);
+  font-size: 0.86rem;
+  text-align: left;
+}
+
+.progress-meta strong {
+  color: var(--text);
+  font-variant-numeric: tabular-nums;
+}
+
+.state-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 0.7rem;
+  margin-top: 0.45rem;
+}
+
+.error-panel {
+  border-color: rgba(239, 68, 68, 0.34);
+  background: rgba(127, 29, 29, 0.16);
+}
+
 .empty-panel .btn {
   margin-top: 0.4rem;
 }
@@ -520,6 +571,24 @@ button {
   border: 1px dashed var(--line);
   border-radius: 0.85rem;
   text-align: center;
+}
+
+.channel-list-loading {
+  display: grid;
+  gap: 0.65rem;
+  padding: 0.2rem 0;
+}
+
+.skeleton-row {
+  height: 4rem;
+  border-radius: 0.85rem;
+  background: linear-gradient(90deg, rgba(255, 255, 255, 0.05), rgba(255, 255, 255, 0.12), rgba(255, 255, 255, 0.05));
+  background-size: 200% 100%;
+  animation: shimmer 1.2s linear infinite;
+}
+
+.skeleton-row.short {
+  width: 72%;
 }
 
 .spinner,
@@ -588,6 +657,20 @@ button {
 @keyframes shimmer {
   to {
     background-position: -200% 0;
+  }
+}
+
+@keyframes progress-slide {
+  0% {
+    transform: translateX(-110%);
+  }
+
+  50% {
+    transform: translateX(80%);
+  }
+
+  100% {
+    transform: translateX(240%);
   }
 }
 

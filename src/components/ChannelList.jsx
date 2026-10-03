@@ -62,7 +62,13 @@ function ChannelList({ channels, selectedChannel, onSelect, favorites, onToggleF
       </div>
 
       <div className="channels">
-        {filtered.length > 0 ? (
+        {loading && channels.length === 0 ? (
+          <div className="channel-list-loading">
+            <div className="skeleton-row" />
+            <div className="skeleton-row" />
+            <div className="skeleton-row short" />
+          </div>
+        ) : filtered.length > 0 ? (
           filtered.map((channel) => (
             <div
               key={getChannelKey(channel)}

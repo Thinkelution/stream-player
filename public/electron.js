@@ -3,6 +3,9 @@ const path = require('path');
 const isDev = require('electron-is-dev');
 const axios = require('axios');
 
+const PLAYLIST_TIMEOUT_MS = 30000;
+const EPG_TIMEOUT_MS = 20000;
+
 let mainWindow;
 
 const createWindow = () => {
@@ -41,7 +44,7 @@ app.on('activate', () => {
 
 ipcMain.handle('fetch-m3u', async (event, url) => {
   try {
-    const response = await axios.get(url);
+    const response = await axios.get(url, { timeout: PLAYLIST_TIMEOUT_MS });
     return response.data;
   } catch (error) {
     console.error('Error fetching M3U:', error);
@@ -51,7 +54,7 @@ ipcMain.handle('fetch-m3u', async (event, url) => {
 
 ipcMain.handle('fetch-epg', async (event, url) => {
   try {
-    const response = await axios.get(url);
+    const response = await axios.get(url, { timeout: EPG_TIMEOUT_MS });
     return response.data;
   } catch (error) {
     console.error('Error fetching EPG:', error);
