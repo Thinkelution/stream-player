@@ -59,6 +59,19 @@ For each release, update the version and SHA-256 using the final uploaded DMG.
 Do not replace an existing release asset after publishing its checksum; publish
 a new version instead.
 
+### Automated desktop builds
+
+GitHub Actions builds desktop installers from `.github/workflows/release-builds.yml`.
+Push a version tag such as `v0.1.15` to build macOS, Windows, and Linux artifacts and attach them to the GitHub release. You can also run **Build desktop releases** manually from the Actions tab to produce downloadable test artifacts without creating a release.
+
+The workflow currently produces:
+
+- macOS Apple Silicon DMG/ZIP
+- Windows NSIS installer and portable EXE
+- Linux AppImage and DEB
+
+Windows and Linux artifacts are unsigned. macOS uses the existing ad-hoc signing flow unless signing credentials are added later.
+
 ### Preparing a macOS release
 
 Run `npm run build-mac`. It produces Apple Silicon DMG/ZIP artifacts in `dist/`.

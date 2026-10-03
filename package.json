@@ -28,7 +28,8 @@
     "dev": "concurrently \"npm run react-start\" \"wait-on http://localhost:3000 && npm run electron-start\"",
     "build": "node scripts/build-release.cjs && electron-builder",
     "build-mac": "node scripts/build-release.cjs && electron-builder --mac --arm64 --publish never",
-    "build-win": "node scripts/build-release.cjs && electron-builder --win"
+    "build-win": "node scripts/build-release.cjs && electron-builder --win --publish never",
+    "build-linux": "node scripts/build-release.cjs && electron-builder --linux --publish never"
   },
   "eslintConfig": {
     "extends": "react-app"
@@ -70,6 +71,14 @@
         "nsis",
         "portable"
       ]
+    },
+    "linux": {
+      "target": [
+        "AppImage",
+        "deb"
+      ],
+      "category": "AudioVideo;Player;",
+      "maintainer": "Thinkelution"
     }
   }
 }
