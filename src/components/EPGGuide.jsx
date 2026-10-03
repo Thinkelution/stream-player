@@ -1,19 +1,42 @@
 import React, { useMemo } from 'react';
 
 function EPGGuide({ channel, epgData, loading }) {
+  const parseXmltvDate = (value) => {
+    const match = String(value || '').match(/^(\d{4})(\d{2})(\d{2})(\d{2})(\d{2})(\d{2})(?:\s*([+-]\d{4}))?/);
+    if (!match) return new Date(value || 0);
+
+    const [, year, month, day, hour, minute, second, offset] = match;
+    const tz = offset ? `${offset.slice(0, 3)}:${offset.slice(3)}` : 'Z';
+    return new Date(`${year}-${month}-${day}T${hour}:${minute}:${second}${tz}`);
+  };
+
+  const formatTime = (date) => date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+
   const currentPrograms = useMemo(() => {
-    if (!channel || !epgData[channel.name]) return [];
+    if (!channel) return [];
+
+    const key = channel.epgId || channel.name;
+    const programs = epgData[key] || epgData[channel.name] || [];
+    if (!programs.length) return [];
 
     const now = new Date();
-    const programs = epgData[channel.name] || [];
 
     return programs
-      .filter((prog) => {
-        const start = new Date(prog.start.replace(/(\d{4})(\d{2})(\d{2})T(\d{2})(\d{2})(\d{2})/, '$1-$2-$3T$4:$5:$6'));
-        const stop = new Date(prog.stop.replace(/(\d{4})(\d{2})(\d{2})T(\d{2})(\d{2})(\d{2})/, '$1-$2-$3T$4:$5:$6'));
-        return start <= now && stop >= now;
+      .map((prog) => ({
+        ...prog,
+        startDate: parseXmltvDate(prog.start),
+        stopDate: parseXmltvDate(prog.stop),
+      }))
+      .filter((prog) => prog.stopDate >= now)
+      .sort((a, b) => a.startDate - b.startDate)
+      .slice(0, 4)
+      .map((prog) => {
+        const isCurrent = prog.startDate <= now && prog.stopDate >= now;
+        return {
+          ...prog,
+          label: isCurrent ? 'Now' : formatTime(prog.startDate),
+        };
       })
-      .slice(0, 5);
   }, [channel, epgData]);
 
   return (
@@ -34,7 +57,7 @@ function EPGGuide({ channel, epgData, loading }) {
         <div className="programs">
           {currentPrograms.map((prog, idx) => (
             <div key={idx} className="program">
-              <div className="program-title">{prog.title}</div>
+              <div className="program-title"><span>{prog.label}</span>{prog.title}</div>
               {prog.description && <div className="program-desc">{prog.description}</div>}
             </div>
           ))}

@@ -40,9 +40,14 @@ button {
   flex-direction: column;
   height: 100vh;
   min-height: 0;
+  font-size: 13px;
   background:
     radial-gradient(circle at top left, rgba(20, 184, 166, 0.14), transparent 34rem),
     linear-gradient(135deg, #0b1117 0%, #101821 48%, #0c1219 100%);
+}
+
+.app.font-large {
+  font-size: 15px;
 }
 
 .app-header {
@@ -50,7 +55,8 @@ button {
   align-items: center;
   justify-content: space-between;
   gap: 1rem;
-  padding: 1rem 1.25rem;
+  min-height: 4.55rem;
+  padding: 0.65rem 1rem;
   border-bottom: 1px solid var(--line);
   background: rgba(11, 17, 23, 0.88);
   backdrop-filter: blur(18px);
@@ -87,7 +93,7 @@ button {
 }
 
 .app-header h1 {
-  font-size: 1.35rem;
+  font-size: 1.2rem;
   line-height: 1.1;
 }
 
@@ -120,7 +126,7 @@ button {
   justify-content: center;
   gap: 0.5rem;
   min-height: 2.4rem;
-  padding: 0.55rem 0.9rem;
+  padding: 0.5rem 0.78rem;
   border: 1px solid transparent;
   border-radius: 0.65rem;
   cursor: pointer;
@@ -169,15 +175,20 @@ button {
 
 .app-container {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(19rem, 25vw);
+  grid-template-columns: minmax(0, 1fr) clamp(20rem, 25vw, 25rem);
   flex: 1;
   min-height: 0;
+  overflow: hidden;
 }
 
 .player-section {
+  display: grid;
+  grid-template-rows: minmax(0, 1fr) auto;
+  gap: 0.65rem;
   min-width: 0;
-  overflow-y: auto;
-  padding: 1.25rem;
+  min-height: 0;
+  overflow: hidden;
+  padding: 0.7rem;
 }
 
 .sidebar {
@@ -197,13 +208,16 @@ button {
 }
 
 .video-player {
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr);
+  min-height: 0;
   overflow: hidden;
 }
 
 .player-header {
   justify-content: space-between;
   gap: 1rem;
-  padding: 1rem;
+  padding: 0.7rem 0.8rem;
   border-bottom: 1px solid var(--line);
 }
 
@@ -242,7 +256,7 @@ button {
   display: block;
   margin-bottom: 0.18rem;
   color: var(--accent);
-  font-size: 0.72rem;
+  font-size: 0.66rem;
   font-weight: 800;
   letter-spacing: 0.08em;
   text-transform: uppercase;
@@ -251,7 +265,7 @@ button {
 .player-header h2 {
   max-width: 58vw;
   overflow: hidden;
-  font-size: 1.3rem;
+  font-size: 1.05rem;
   line-height: 1.2;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -260,7 +274,7 @@ button {
 .favorite-action {
   flex: 0 0 auto;
   min-height: 2.4rem;
-  padding: 0.55rem 0.85rem;
+  padding: 0.45rem 0.72rem;
   border-radius: 0.65rem;
   cursor: pointer;
   font-weight: 800;
@@ -273,8 +287,8 @@ button {
 
 .video-shell {
   position: relative;
-  aspect-ratio: 16 / 9;
-  min-height: 18rem;
+  min-height: 0;
+  height: 100%;
   background: #020617;
 }
 
@@ -313,8 +327,10 @@ button {
 }
 
 .epg-guide {
-  margin-top: 1rem;
-  padding: 1rem;
+  min-height: 5.7rem;
+  max-height: 8rem;
+  overflow: hidden;
+  padding: 0.7rem 0.8rem;
 }
 
 .section-title-row,
@@ -330,12 +346,14 @@ button {
 
 .programs {
   display: grid;
-  gap: 0.7rem;
-  margin-top: 0.9rem;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.45rem;
+  margin-top: 0.55rem;
 }
 
 .program {
-  padding: 0.85rem;
+  min-width: 0;
+  padding: 0.55rem;
   border: 1px solid var(--line);
   border-left: 3px solid var(--accent);
   border-radius: 0.7rem;
@@ -343,8 +361,17 @@ button {
 }
 
 .program-title {
+  display: flex;
+  gap: 0.4rem;
+  min-width: 0;
   margin-bottom: 0.25rem;
   font-weight: 800;
+  font-size: 0.82rem;
+}
+
+.program-title span {
+  color: var(--accent);
+  flex: 0 0 auto;
 }
 
 .program-desc,
@@ -361,14 +388,14 @@ button {
   display: flex;
   flex-direction: column;
   height: 100%;
-  gap: 0.9rem;
-  padding: 1rem;
+  gap: 0.65rem;
+  padding: 0.8rem;
 }
 
 .search-box input {
   width: 100%;
-  height: 2.75rem;
-  padding: 0 0.9rem;
+  height: 2.45rem;
+  padding: 0 0.75rem;
   border: 1px solid var(--line);
   border-radius: 0.75rem;
   outline: none;
@@ -392,7 +419,7 @@ button {
   flex: 0 0 auto;
   max-width: 11rem;
   overflow: hidden;
-  padding: 0.45rem 0.7rem;
+  padding: 0.36rem 0.6rem;
   border: 1px solid var(--line);
   border-radius: 999px;
   background: rgba(255, 255, 255, 0.05);
@@ -424,8 +451,8 @@ button {
 
 .channel-item {
   gap: 0.7rem;
-  min-height: 4rem;
-  padding: 0.6rem;
+  min-height: 3.35rem;
+  padding: 0.48rem;
   border: 1px solid transparent;
   border-radius: 0.85rem;
   background: rgba(255, 255, 255, 0.045);
@@ -445,8 +472,8 @@ button {
 }
 
 .channel-logo-frame {
-  width: 2.4rem;
-  height: 2.4rem;
+  width: 2.15rem;
+  height: 2.15rem;
   border-radius: 0.65rem;
 }
 
@@ -464,13 +491,13 @@ button {
 }
 
 .channel-name {
-  font-size: 0.92rem;
+  font-size: 0.86rem;
   font-weight: 750;
 }
 
 .channel-group {
   margin-top: 0.15rem;
-  font-size: 0.76rem;
+  font-size: 0.7rem;
 }
 
 .favorite-btn {

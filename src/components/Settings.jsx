@@ -8,6 +8,7 @@ function Settings({ isOpen, onClose, onSave }) {
   const [xtreamPass, setXtreamPass] = useState('');
   const [m3uUrl, setM3uUrl] = useState('');
   const [epgUrl, setEpgUrl] = useState('');
+  const [fontSize, setFontSize] = useState('compact');
   const [saving, setSaving] = useState(false);
 
   useEffect(() => {
@@ -20,6 +21,7 @@ function Settings({ isOpen, onClose, onSave }) {
       setXtreamPass(config.xtreamPass || '');
       setM3uUrl(config.m3uUrl || '');
       setEpgUrl(config.epgUrl || '');
+      setFontSize(config.fontSize || 'compact');
     }
   }, [isOpen]);
 
@@ -32,6 +34,7 @@ function Settings({ isOpen, onClose, onSave }) {
       xtreamPass,
       m3uUrl,
       epgUrl,
+      fontSize,
     };
     localStorage.setItem('streamPlayerConfig', JSON.stringify(config));
     setTimeout(() => {
@@ -134,6 +137,26 @@ function Settings({ isOpen, onClose, onSave }) {
                 value={epgUrl}
                 onChange={(e) => setEpgUrl(e.target.value)}
               />
+            </div>
+          </div>
+
+          <div className="config-section">
+            <div className="form-group">
+              <label>Text Size</label>
+              <div className="mode-buttons compact-toggle">
+                <button
+                  className={`mode-btn ${fontSize === 'compact' ? 'active' : ''}`}
+                  onClick={() => setFontSize('compact')}
+                >
+                  Compact
+                </button>
+                <button
+                  className={`mode-btn ${fontSize === 'large' ? 'active' : ''}`}
+                  onClick={() => setFontSize('large')}
+                >
+                  Larger
+                </button>
+              </div>
             </div>
           </div>
         </div>

@@ -31,7 +31,13 @@ function App() {
   const [epgLoading, setEpgLoading] = useState(false);
   const [error, setError] = useState(null);
   const [settingsOpen, setSettingsOpen] = useState(false);
-  const [config, setConfig] = useState(null);
+  const [config, setConfig] = useState(() => {
+    try {
+      return JSON.parse(localStorage.getItem('streamPlayerConfig') || 'null');
+    } catch (err) {
+      return null;
+    }
+  });
   const [favorites, setFavorites] = useState(() => {
     try {
       return JSON.parse(localStorage.getItem(FAVORITES_STORAGE_KEY) || '[]');
@@ -207,6 +213,7 @@ function App() {
           name: stream.name,
           logo: stream.stream_icon || '',
           group: categoryMap.get(String(stream.category_id)) || 'Other',
+          epgId: stream.epg_channel_id || stream.name,
           url: `${baseUrl}/live/${cfg.xtreamUser}/${cfg.xtreamPass}/${stream.stream_id}.m3u8`,
         };
       });
@@ -298,6 +305,7 @@ function App() {
           name: nameMatch ? nameMatch[1] : (match ? match[1] : 'Unknown'),
           logo: logoMatch ? logoMatch[1] : '',
           group: groupMatch ? groupMatch[1] : 'Other',
+          epgId: nameMatch ? nameMatch[1] : (match ? match[1] : 'Unknown'),
           url: '',
         };
       } else if (line && !line.startsWith('#') && currentChannel) {
@@ -335,7 +343,7 @@ function App() {
   };
 
   return (
-    <div className="app">
+    <div className={`app font-${config?.fontSize || 'compact'}`}>
       <header className="app-header">
         <div className="brand-lockup">
           <div className="brand-mark">OS</div>
