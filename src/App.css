@@ -40,14 +40,18 @@ button {
   flex-direction: column;
   height: 100vh;
   min-height: 0;
-  font-size: 13px;
+  font-size: 11.5px;
   background:
     radial-gradient(circle at top left, rgba(20, 184, 166, 0.14), transparent 34rem),
     linear-gradient(135deg, #0b1117 0%, #101821 48%, #0c1219 100%);
 }
 
+.app.font-tiny {
+  font-size: 10.5px;
+}
+
 .app.font-large {
-  font-size: 15px;
+  font-size: 14px;
 }
 
 .app-header {
@@ -55,8 +59,8 @@ button {
   align-items: center;
   justify-content: space-between;
   gap: 1rem;
-  min-height: 4.55rem;
-  padding: 0.65rem 1rem;
+  min-height: 4.25rem;
+  padding: 0.55rem 0.9rem;
   border-bottom: 1px solid var(--line);
   background: rgba(11, 17, 23, 0.88);
   backdrop-filter: blur(18px);
@@ -81,8 +85,8 @@ button {
 .brand-mark {
   display: grid;
   place-items: center;
-  width: 2.75rem;
-  height: 2.75rem;
+  width: 2.55rem;
+  height: 2.55rem;
   flex: 0 0 auto;
   border: 1px solid rgba(20, 184, 166, 0.45);
   border-radius: 0.8rem;
@@ -125,8 +129,8 @@ button {
   align-items: center;
   justify-content: center;
   gap: 0.5rem;
-  min-height: 2.4rem;
-  padding: 0.5rem 0.78rem;
+  min-height: 2.2rem;
+  padding: 0.42rem 0.7rem;
   border: 1px solid transparent;
   border-radius: 0.65rem;
   cursor: pointer;
@@ -188,7 +192,7 @@ button {
   min-width: 0;
   min-height: 0;
   overflow: hidden;
-  padding: 0.7rem;
+  padding: 0.6rem;
 }
 
 .sidebar {
@@ -217,7 +221,7 @@ button {
 .player-header {
   justify-content: space-between;
   gap: 1rem;
-  padding: 0.7rem 0.8rem;
+  padding: 0.6rem 0.7rem;
   border-bottom: 1px solid var(--line);
 }
 
@@ -239,8 +243,8 @@ button {
 }
 
 .channel-logo-large {
-  width: 3.5rem;
-  height: 3.5rem;
+  width: 3.1rem;
+  height: 3.1rem;
   border-radius: 0.9rem;
 }
 
@@ -330,7 +334,7 @@ button {
   min-height: 5.7rem;
   max-height: 8rem;
   overflow: hidden;
-  padding: 0.7rem 0.8rem;
+  padding: 0.6rem 0.7rem;
 }
 
 .section-title-row,
@@ -366,7 +370,7 @@ button {
   min-width: 0;
   margin-bottom: 0.25rem;
   font-weight: 800;
-  font-size: 0.82rem;
+  font-size: 0.74rem;
 }
 
 .program-title span {
@@ -423,7 +427,7 @@ button {
   background: rgba(255, 255, 255, 0.05);
   color: var(--muted);
   cursor: pointer;
-  font-size: 0.78rem;
+  font-size: 0.7rem;
   font-weight: 800;
 }
 
@@ -450,7 +454,7 @@ button {
   background: rgba(255, 255, 255, 0.05);
   color: var(--muted);
   cursor: pointer;
-  font-size: 0.82rem;
+  font-size: 0.74rem;
   font-weight: 700;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -474,9 +478,9 @@ button {
 .channel-item {
   display: flex;
   gap: 0.7rem;
-  height: 3.35rem;
-  margin-bottom: 0.5rem;
-  padding: 0.48rem;
+  height: 3.05rem;
+  margin-bottom: 0.42rem;
+  padding: 0.4rem;
   border: 1px solid transparent;
   border-radius: 0.85rem;
   background: rgba(255, 255, 255, 0.045);
@@ -496,8 +500,8 @@ button {
 }
 
 .channel-logo-frame {
-  width: 2.15rem;
-  height: 2.15rem;
+  width: 1.95rem;
+  height: 1.95rem;
   border-radius: 0.65rem;
 }
 
@@ -515,7 +519,7 @@ button {
 }
 
 .channel-name {
-  font-size: 0.86rem;
+  font-size: 0.7rem;
   font-weight: 750;
 }
 
@@ -525,21 +529,21 @@ button {
 
 .channel-group {
   margin-top: 0.15rem;
-  font-size: 0.7rem;
+  font-size: 0.64rem;
 }
 
 .favorite-btn {
   display: grid;
   place-items: center;
-  width: 2rem;
-  height: 2rem;
+  width: 1.8rem;
+  height: 1.8rem;
   flex: 0 0 auto;
   border: 1px solid transparent;
   border-radius: 50%;
   background: transparent;
   color: var(--muted);
   cursor: pointer;
-  font-size: 1.15rem;
+  font-size: 1rem;
 }
 
 .favorite-btn:hover {
@@ -591,7 +595,7 @@ button {
   justify-content: space-between;
   gap: 1rem;
   color: var(--muted);
-  font-size: 0.86rem;
+  font-size: 0.7rem;
   text-align: left;
 }
 
@@ -836,7 +840,7 @@ button {
   background: rgba(255, 255, 255, 0.07);
   color: var(--text);
   cursor: pointer;
-  font-size: 0.82rem;
+  font-size: 0.74rem;
   font-weight: 800;
   transition: background 0.16s ease, border-color 0.16s ease, transform 0.16s ease;
 }

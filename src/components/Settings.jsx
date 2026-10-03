@@ -153,6 +153,12 @@ function Settings({ isOpen, onClose, onSave }) {
               <label>Text Size</label>
               <div className="mode-buttons compact-toggle">
                 <button
+                  className={`mode-btn ${fontSize === 'tiny' ? 'active' : ''}`}
+                  onClick={() => setFontSize('tiny')}
+                >
+                  Tiny
+                </button>
+                <button
                   className={`mode-btn ${fontSize === 'compact' ? 'active' : ''}`}
                   onClick={() => setFontSize('compact')}
                 >
