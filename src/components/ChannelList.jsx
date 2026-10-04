@@ -100,6 +100,15 @@ function ChannelList({ channels, selectedChannel, onSelect, favorites, onToggleF
     return group;
   };
 
+  const searchPlaceholder = useMemo(() => {
+    if (selectedGroup === 'Favorites') return 'Search Favorites';
+    if (selectedGroup !== 'All') return `Search ${selectedGroup}`;
+    if (selectedType === 'live') return 'Search Live';
+    if (selectedType === 'movie') return 'Search Movies';
+    if (selectedType === 'series') return 'Search Series';
+    return 'Search All';
+  }, [selectedGroup, selectedType]);
+
   return (
     <div className="channel-list">
       <div className="sidebar-header">
@@ -128,7 +137,7 @@ function ChannelList({ channels, selectedChannel, onSelect, favorites, onToggleF
       <div className="search-box">
         <input
           type="text"
-          placeholder="Search channels"
+          placeholder={searchPlaceholder}
           value={searchTerm}
           onChange={(e) => setSearchTerm(e.target.value)}
         />

@@ -4,6 +4,16 @@ import HLS from 'hls.js';
 const PLAYBACK_START_TIMEOUT_MS = 30000;
 const BUFFERING_STALL_RECOVERY_MS = 12000;
 
+const formatMediaTime = (seconds) => {
+  if (!Number.isFinite(seconds) || seconds < 0) return '0:00';
+  const total = Math.floor(seconds);
+  const hours = Math.floor(total / 3600);
+  const minutes = Math.floor((total % 3600) / 60);
+  const secs = total % 60;
+  if (hours > 0) return `${hours}:${String(minutes).padStart(2, '0')}:${String(secs).padStart(2, '0')}`;
+  return `${minutes}:${String(secs).padStart(2, '0')}`;
+};
+
 function VideoPlayer({ channel, channels = [], channelListLabel = 'Channels', fullscreenPrograms = [], getCurrentProgram, selectedChannel, onSelectChannel, isFavorite, onToggleFavorite, getChannelKey }) {
   const videoRef = useRef(null);
   const hlsRef = useRef(null);
@@ -20,6 +30,9 @@ function VideoPlayer({ channel, channels = [], channelListLabel = 'Channels', fu
   const [isPlaying, setIsPlaying] = useState(false);
   const [isMuted, setIsMuted] = useState(false);
   const [volume, setVolume] = useState(1);
+  const [currentTime, setCurrentTime] = useState(0);
+  const [duration, setDuration] = useState(0);
+  const [isSeeking, setIsSeeking] = useState(false);
   const [levels, setLevels] = useState([]);
   const [selectedLevel, setSelectedLevel] = useState(-1);
   const [captions, setCaptions] = useState([]);
@@ -36,6 +49,8 @@ function VideoPlayer({ channel, channels = [], channelListLabel = 'Channels', fu
     if (getChannelKey) return getChannelKey(item);
     return `${item.name}|${item.group}|${item.contentType || 'live'}|${item.streamId || item.seriesId || item.url}`;
   }, [getChannelKey]);
+
+  const isVod = channel?.contentType === 'movie' || channel?.contentType === 'series';
 
   const fullscreenChannels = useMemo(() => {
     if (!channels.length) return [];
@@ -75,6 +90,8 @@ function VideoPlayer({ channel, channels = [], channelListLabel = 'Channels', fu
     setIsPlaying(false);
     setLevels([]);
     setCaptions([]);
+    setCurrentTime(0);
+    setDuration(0);
     setControlsVisible(true);
     if (manual) setIsStopped(true);
   }, [destroyHls, resetVideoElement]);
@@ -198,6 +215,9 @@ function VideoPlayer({ channel, channels = [], channelListLabel = 'Channels', fu
     setSelectedLevel(-1);
     setCaptions([]);
     setSelectedCaption(-1);
+    setCurrentTime(0);
+    setDuration(0);
+    setIsSeeking(false);
     setControlsVisible(true);
 
     startTimerRef.current = window.setTimeout(() => {
@@ -376,6 +396,29 @@ function VideoPlayer({ channel, channels = [], channelListLabel = 'Channels', fu
     showControlsTemporarily();
   };
 
+  const updateVodTime = () => {
+    const video = videoRef.current;
+    if (!video) return;
+    if (!isSeeking) setCurrentTime(Number.isFinite(video.currentTime) ? video.currentTime : 0);
+    setDuration(Number.isFinite(video.duration) ? video.duration : 0);
+  };
+
+  const changeSeek = (event) => {
+    const nextTime = Number(event.target.value);
+    setCurrentTime(nextTime);
+  };
+
+  const commitSeek = (event) => {
+    const nextTime = Number(event.target.value);
+    const video = videoRef.current;
+    if (video && Number.isFinite(nextTime)) {
+      video.currentTime = nextTime;
+      setCurrentTime(nextTime);
+    }
+    setIsSeeking(false);
+    showControlsTemporarily();
+  };
+
   const changeLevel = (event) => {
     const level = Number(event.target.value);
     setSelectedLevel(level);
@@ -454,6 +497,9 @@ function VideoPlayer({ channel, channels = [], channelListLabel = 'Channels', fu
           onCanPlay={() => markPlaybackStarted(streamSessionRef.current)}
           onPlaying={() => markPlaybackStarted(streamSessionRef.current)}
           onProgress={handleVideoProgress}
+          onLoadedMetadata={updateVodTime}
+          onDurationChange={updateVodTime}
+          onTimeUpdate={updateVodTime}
           onPlay={() => {
             setIsPlaying(true);
             showControlsTemporarily();
@@ -517,22 +563,43 @@ function VideoPlayer({ channel, channels = [], channelListLabel = 'Channels', fu
               ⏹
             </button>
           </div>
-          <div className="fullscreen-control-guide" aria-label="Current channel and guide">
-            <div className="fullscreen-channel-context">
-              <strong>{channel.name}</strong>
-              <span>{channel.episodeTitle || channel.group}</span>
+          {isVod ? (
+            <div className="vod-seek-control" aria-label="Video seek controls">
+              <span>{formatMediaTime(currentTime)}</span>
+              <input
+                type="range"
+                min="0"
+                max={duration || 0}
+                step="1"
+                value={Math.min(currentTime, duration || currentTime || 0)}
+                onMouseDown={() => setIsSeeking(true)}
+                onTouchStart={() => setIsSeeking(true)}
+                onChange={changeSeek}
+                onMouseUp={commitSeek}
+                onTouchEnd={commitSeek}
+                aria-label="Seek video"
+                disabled={!duration}
+              />
+              <span>{formatMediaTime(duration)}</span>
             </div>
-            {fullscreenPrograms.length > 0 && (
-              <div className="fullscreen-guide-strip">
-                {fullscreenPrograms.map((program, index) => (
-                  <div key={`${program.label}-${program.title}-${index}`} className="fullscreen-guide-item">
-                    <span>{program.label}</span>
-                    <strong>{program.title}</strong>
-                  </div>
-                ))}
+          ) : (
+            <div className="fullscreen-control-guide" aria-label="Current channel and guide">
+              <div className="fullscreen-channel-context">
+                <strong>{channel.name}</strong>
+                <span>{channel.episodeTitle || channel.group}</span>
               </div>
-            )}
-          </div>
+              {fullscreenPrograms.length > 0 && (
+                <div className="fullscreen-guide-strip">
+                  {fullscreenPrograms.map((program, index) => (
+                    <div key={`${program.label}-${program.title}-${index}`} className="fullscreen-guide-item">
+                      <span>{program.label}</span>
+                      <strong>{program.title}</strong>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
           <div className="control-right">
             <select className="control-select" value={selectedLevel} onChange={changeLevel} title="Bitrate / quality" aria-label="Bitrate / quality">
               <option value={-1}>Auto</option>

@@ -508,6 +508,29 @@ button {
   white-space: nowrap;
 }
 
+.vod-seek-control {
+  display: grid;
+  grid-template-columns: auto minmax(10rem, 1fr) auto;
+  align-items: center;
+  gap: 0.55rem;
+  flex: 1;
+  min-width: min(26rem, 38vw);
+  max-width: min(44rem, 48vw);
+  padding: 0 0.7rem;
+}
+
+.vod-seek-control span {
+  color: var(--muted);
+  font-size: 0.58rem;
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+}
+
+.vod-seek-control input {
+  width: 100%;
+  accent-color: var(--accent);
+}
+
 .video-overlay,
 .state-panel {
   display: grid;
