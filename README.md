@@ -62,7 +62,7 @@ a new version instead.
 ### Automated desktop builds
 
 GitHub Actions builds desktop installers from `.github/workflows/release-builds.yml`.
-Push a version tag such as `v0.1.21` to build macOS, Windows, and Linux artifacts and attach them to the GitHub release. You can also run **Build desktop releases** manually from the Actions tab to produce downloadable test artifacts without creating a release.
+Push a version tag such as `v0.1.22` to build macOS, Windows, and Linux artifacts and attach them to the GitHub release. You can also run **Build desktop releases** manually from the Actions tab to produce downloadable test artifacts without creating a release.
 
 The workflow currently produces:
 

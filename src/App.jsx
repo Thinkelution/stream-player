@@ -66,7 +66,7 @@ const parseGuideDate = (value) => {
 
 const formatGuideTime = (date) => date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
 
-const getCurrentProgramsForChannel = (channel, epgData, limit = 4) => {
+const getCurrentProgramsForChannel = (channel, epgData, limit = 4, nowDate = new Date()) => {
   if (!channel) return [];
 
   const programs = getGuideKeys(channel)
@@ -74,7 +74,7 @@ const getCurrentProgramsForChannel = (channel, epgData, limit = 4) => {
     .find((items) => Array.isArray(items) && items.length) || [];
   if (!programs.length) return [];
 
-  const now = new Date();
+  const now = nowDate instanceof Date ? nowDate : new Date(nowDate);
 
   return programs
     .map((prog) => ({
@@ -90,6 +90,10 @@ const getCurrentProgramsForChannel = (channel, epgData, limit = 4) => {
       return {
         ...prog,
         label: isCurrent ? 'Now' : formatGuideTime(prog.startDate),
+        progress: isCurrent
+          ? Math.min(100, Math.max(0, ((now - prog.startDate) / (prog.stopDate - prog.startDate || 1)) * 100))
+          : 0,
+        timeRange: `${formatGuideTime(prog.startDate)}–${formatGuideTime(prog.stopDate)}`,
       };
     });
 };
@@ -110,6 +114,7 @@ function App() {
   const [loading, setLoading] = useState(true);
   const [loadingProgress, setLoadingProgress] = useState(initialLoadingProgress);
   const [epgLoading, setEpgLoading] = useState(false);
+  const [guideNow, setGuideNow] = useState(() => new Date());
   const [error, setError] = useState(null);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [config, setConfig] = useState(() => {
@@ -129,19 +134,33 @@ function App() {
 
 
   const fullscreenPrograms = useMemo(
-    () => getCurrentProgramsForChannel(selectedChannel, epgData, 2),
-    [selectedChannel, epgData]
+    () => getCurrentProgramsForChannel(selectedChannel, epgData, 2, guideNow),
+    [selectedChannel, epgData, guideNow]
   );
 
+  const getCurrentProgramForChannel = useCallback((channel) => {
+    if ((channel?.contentType || 'live') !== 'live') return null;
+    const currentProgram = getCurrentProgramsForChannel(channel, epgData, 1, guideNow)[0];
+    return currentProgram?.label === 'Now' ? currentProgram : null;
+  }, [epgData, guideNow]);
+
   const getCurrentProgramTitleForChannel = useCallback((channel) => {
-    if ((channel?.contentType || 'live') !== 'live') return '';
-    const currentProgram = getCurrentProgramsForChannel(channel, epgData, 1)[0];
-    return currentProgram?.label === 'Now' ? currentProgram.title : '';
-  }, [epgData]);
+    const currentProgram = getCurrentProgramForChannel(channel);
+    return currentProgram?.title || '';
+  }, [getCurrentProgramForChannel]);
 
   const handleVisibleChannelsChange = useCallback((visibleChannels, label) => {
     setActiveChannels(visibleChannels);
     setActiveChannelListLabel(label || 'Channels');
+  }, []);
+
+
+  useEffect(() => {
+    const timer = window.setInterval(() => {
+      setGuideNow(new Date());
+    }, 30000);
+
+    return () => window.clearInterval(timer);
   }, []);
 
   useEffect(() => {
@@ -846,6 +865,7 @@ function App() {
                 channels={activeChannels.length ? activeChannels : channels}
                 channelListLabel={activeChannelListLabel}
                 fullscreenPrograms={fullscreenPrograms}
+                getCurrentProgram={getCurrentProgramForChannel}
                 selectedChannel={selectedChannel}
                 onSelectChannel={handleSelectChannel}
                 getChannelKey={getChannelKey}

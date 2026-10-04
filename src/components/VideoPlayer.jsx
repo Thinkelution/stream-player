@@ -4,7 +4,7 @@ import HLS from 'hls.js';
 const PLAYBACK_START_TIMEOUT_MS = 30000;
 const BUFFERING_STALL_RECOVERY_MS = 12000;
 
-function VideoPlayer({ channel, channels = [], channelListLabel = 'Channels', fullscreenPrograms = [], selectedChannel, onSelectChannel, isFavorite, onToggleFavorite, getChannelKey }) {
+function VideoPlayer({ channel, channels = [], channelListLabel = 'Channels', fullscreenPrograms = [], getCurrentProgram, selectedChannel, onSelectChannel, isFavorite, onToggleFavorite, getChannelKey }) {
   const videoRef = useRef(null);
   const hlsRef = useRef(null);
   const startTimerRef = useRef(null);
@@ -485,6 +485,7 @@ function VideoPlayer({ channel, channels = [], channelListLabel = 'Channels', fu
             <div className="fullscreen-channel-items">
               {fullscreenChannels.map((item) => {
                 const active = keyForChannel(item) === keyForChannel(selectedChannel || channel);
+                const currentProgram = getCurrentProgram?.(item);
                 return (
                   <button
                     type="button"
@@ -494,6 +495,13 @@ function VideoPlayer({ channel, channels = [], channelListLabel = 'Channels', fu
                   >
                     <span>{item.name}</span>
                     <small>{item.group}</small>
+                    {currentProgram && (
+                      <div className="fullscreen-channel-program">
+                        <span>{currentProgram.title}</span>
+                        <small>{currentProgram.timeRange}</small>
+                        <i><b style={{ width: `${currentProgram.progress}%` }} /></i>
+                      </div>
+                    )}
                   </button>
                 );
               })}
