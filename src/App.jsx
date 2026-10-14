@@ -1,10 +1,11 @@
-import React, { useState, useEffect, useMemo, useCallback } from 'react';
+import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import axios from 'axios';
 import './App.css';
 import ChannelList from './components/ChannelList';
 import VideoPlayer from './components/VideoPlayer';
 import EPGGuide from './components/EPGGuide';
 import Settings from './components/Settings';
+import VodBrowser from './components/VodBrowser';
 
 const FAVORITES_STORAGE_KEY = 'openStreamPlayerFavorites';
 const DEFAULT_EPG_URL = '';
@@ -106,6 +107,9 @@ const initialLoadingProgress = {
 };
 
 function App() {
+  const [view, setView] = useState('player');
+  const [seriesDetail, setSeriesDetail] = useState(null);
+  const selectionRequest = useRef(0);
   const [channels, setChannels] = useState([]);
   const [activeChannels, setActiveChannels] = useState([]);
   const [activeChannelListLabel, setActiveChannelListLabel] = useState('Channels');
@@ -178,7 +182,7 @@ function App() {
       const cachedChannels = await loadCachedPlaylist(startupConfig);
       if (cachedChannels?.length) {
         setChannels(cachedChannels);
-        setSelectedChannel((current) => current || cachedChannels[0]);
+        setSelectedChannel((current) => current || cachedChannels.find(item => item.url) || null);
         setLoading(false);
         setError(null);
         fetchEPG(startupConfig);
@@ -355,9 +359,9 @@ function App() {
         setSelectedChannel((current) => {
           if (current) {
             const match = parsed.find((channel) => getChannelKey(channel) === getChannelKey(current));
-            if (match) return match;
+            if (match) return current.seriesId && current.url ? { ...match, url: current.url, episodeTitle: current.episodeTitle, season: current.season, episodeNumber: current.episodeNumber } : match;
           }
-          return parsed[0];
+          return parsed.find(item => item.url) || null;
         });
       } else {
         setSelectedChannel(null);
@@ -492,37 +496,54 @@ function App() {
     return apiItems;
   };
 
-  const resolvePlayableChannel = async (channel, cfg = config) => {
-    if (channel?.contentType !== 'series' || channel.url || !canUseXtreamApi(cfg)) return channel;
-
-    const info = await fetchJSON(getXtreamApiUrl(cfg, 'get_series_info', { series_id: channel.seriesId }));
-    const seasons = Object.values(info?.episodes || {}).flat();
-    const episode = seasons.find((item) => item?.id);
-    if (!episode) throw new Error('No playable episodes were returned for this series.');
-
-    const baseUrl = getXtreamBaseUrl(cfg);
-    return {
-      ...channel,
-      name: `${channel.name} · S${episode.season || '?'} E${episode.episode_num || '?'}`,
-      episodeTitle: episode.title || channel.name,
-      url: `${baseUrl}/series/${cfg.xtreamUser}/${cfg.xtreamPass}/${episode.id}.${episode.container_extension || 'mp4'}`,
-    };
+  const playVod = (channel) => {
+    selectionRequest.current += 1;
+    setSelectedChannel(channel);
+    setView('player');
   };
 
   const handleSelectChannel = async (channel) => {
-    try {
-      setError(null);
-      setSelectedChannel(await resolvePlayableChannel(channel));
-    } catch (err) {
-      setError('Failed to load series: ' + getFriendlyError(err));
+    const request = ++selectionRequest.current;
+    setError(null);
+    if (channel.contentType !== 'series' || channel.url || !channel.seriesId) {
+      setSelectedChannel(channel);
+      setView('player');
+      return;
     }
+    await window.electronAPI?.setFullscreen?.(false);
+    if (document.fullscreenElement) await document.exitFullscreen();
+    if (request !== selectionRequest.current) return;
+    setView('series');
+    setSeriesDetail({ channel, loading: true });
+    try {
+      if (!canUseXtreamApi(config)) throw new Error('Configure Xtream access to browse this series.');
+      const info = await fetchJSON(getXtreamApiUrl(config, 'get_series_info', { series_id: channel.seriesId }));
+      const episodes = Object.entries(info?.episodes || {}).flatMap(([season, items]) =>
+        (Array.isArray(items) ? items : []).filter(item => item?.id).map(episode => ({
+          ...channel,
+          season: episode.season ?? season,
+          episodeNumber: episode.episode_num ?? '?',
+          episodeTitle: episode.title || channel.name,
+          url: `${getXtreamBaseUrl(config)}/series/${config.xtreamUser}/${config.xtreamPass}/${episode.id}.${episode.container_extension || 'mp4'}`,
+        }))).sort((a, b) => Number(a.season) - Number(b.season) || Number(a.episodeNumber) - Number(b.episodeNumber));
+      if (!episodes.length) throw new Error('No playable episodes were returned for this series.');
+      if (request === selectionRequest.current) setSeriesDetail({ channel, episodes });
+    } catch (err) {
+      if (request === selectionRequest.current) setSeriesDetail({ channel, error: getFriendlyError(err) });
+    }
+  };
+
+  const changeView = (next) => {
+    selectionRequest.current += 1;
+    setView(next);
+    setSeriesDetail(null);
   };
 
 
   useEffect(() => {
     const handleChannelKeydown = (event) => {
       const navigationChannels = activeChannels.length ? activeChannels : channels;
-      if (settingsOpen || !navigationChannels.length || !selectedChannel) return;
+      if (view !== 'player' || settingsOpen || !navigationChannels.length || !selectedChannel) return;
       if (!['ArrowUp', 'ArrowDown'].includes(event.key)) return;
 
       const target = event.target;
@@ -547,7 +568,7 @@ function App() {
     return () => window.removeEventListener('keydown', handleChannelKeydown);
     // Arrow keys should follow the current loaded channel list while ignoring text fields.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [channels, activeChannels, selectedChannel, settingsOpen]);
+  }, [channels, activeChannels, selectedChannel, settingsOpen, view]);
 
   const fetchXtreamChannelEpg = async (channel, cfg) => {
     try {
@@ -812,6 +833,10 @@ function App() {
           </div>
         </div>
         <div className="header-buttons">
+          <nav className="library-nav" aria-label="Library pages">
+            {[['player', 'Player / Live'], ['movie', 'Movies'], ['series', 'Series']].map(([value, label]) =>
+              <button key={value} className={`btn ${view === value ? 'btn-primary' : 'btn-secondary'}`} onClick={() => changeView(value)}>{label}</button>)}
+          </nav>
           <button onClick={() => setSettingsOpen(true)} className="btn btn-secondary">
             Settings
           </button>
@@ -830,6 +855,8 @@ function App() {
         isOpen={settingsOpen}
         onClose={() => setSettingsOpen(false)}
         onSave={(cfg) => {
+          selectionRequest.current += 1;
+          setSeriesDetail(null);
           setConfig(cfg);
           setSettingsOpen(false);
           fetchPlaylist(cfg, { manual: true });
@@ -839,7 +866,10 @@ function App() {
 
       {error && <div className="error-banner">{error}</div>}
 
-      <div className="app-container">
+      {view !== 'player' && <VodBrowser type={view} channels={channels} detail={view === 'series' ? seriesDetail : null}
+        onSelect={handleSelectChannel} onPlay={playVod} onBack={() => changeView('series')}
+        onRetry={() => handleSelectChannel(seriesDetail.channel)} />}
+      <div className="app-container" style={view !== 'player' ? { display: 'none' } : undefined}>
         <div className="player-section">
           {loading && channels.length === 0 ? (
             <div className="state-panel loading-panel">
@@ -858,7 +888,7 @@ function App() {
                 </div>
               </div>
             </div>
-          ) : selectedChannel ? (
+          ) : selectedChannel?.url ? (
             <>
               <VideoPlayer
                 channel={selectedChannel}
@@ -872,12 +902,13 @@ function App() {
                 isFavorite={isFavorite(selectedChannel)}
                 onToggleFavorite={() => toggleFavorite(selectedChannel)}
               />
+              {selectedChannel.seriesId && <button className="btn btn-secondary" onClick={() => handleSelectChannel({ ...selectedChannel, url: '' })}>Seasons and episodes</button>}
               <EPGGuide channel={selectedChannel} epgData={epgData} loading={epgLoading} />
             </>
           ) : (
             <div className={`state-panel ${error ? 'error-panel' : 'empty-panel'}`}>
-              <h2>{error ? 'Playlist did not load' : 'Add a playlist to start watching'}</h2>
-              <p>{error || 'Open Settings, add your M3U or Xtream details, and your channels will appear here.'}</p>
+              <h2>{error ? 'Playlist did not load' : channels.length ? 'Choose a title from your library' : 'Add a playlist to start watching'}</h2>
+              <p>{error || (channels.length ? 'Open Movies or Series to browse titles and choose episodes.' : 'Open Settings, add your M3U or Xtream details, and your channels will appear here.')}</p>
               <div className="state-actions">
                 {hasConfiguredSource(config) ? (
                   <button className="btn btn-primary" onClick={() => fetchPlaylist(config, { manual: true })}>

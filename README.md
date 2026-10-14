@@ -5,7 +5,8 @@ OpenStreamPlayer is a native Electron app for streaming M3U8/IPTV content with E
 ## Features
 
 - 🎬 Play M3U8 playlists and IPTV streams
-- 🎞️ Browse Xtream live TV, movies, and series catalogs
+- 🎞️ Browse searchable movie and series pages, with Xtream season and episode selection
+- 🪟 Fullscreen stays in the main desktop window; repeated launches focus the existing app
 - 📺 EPG/Electronic Program Guide integration
 - ⚙️ Custom live controls with Stop, quality, CC, mute, volume, and fullscreen
 - ⚡ Xtream API loading for providers with slow M3U exports

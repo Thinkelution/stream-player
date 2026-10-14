@@ -184,8 +184,14 @@ function VideoPlayer({ channel, channels = [], channelListLabel = 'Channels', fu
       if (!nextIsFullscreen) setChannelDrawerVisible(false);
     };
 
+    const unsubscribe = window.electronAPI?.onFullscreenChange?.((enabled) => {
+      setIsFullscreen(enabled);
+      if (!enabled) setChannelDrawerVisible(false);
+    });
+    window.electronAPI?.getFullscreen?.().then(setIsFullscreen);
     document.addEventListener('fullscreenchange', onFullscreenChange);
     return () => {
+      unsubscribe?.();
       document.removeEventListener('fullscreenchange', onFullscreenChange);
       window.clearTimeout(drawerTimerRef.current);
     };
@@ -437,6 +443,10 @@ function VideoPlayer({ channel, channels = [], channelListLabel = 'Channels', fu
   };
 
   const toggleFullscreen = () => {
+    if (window.electronAPI?.setFullscreen) {
+      window.electronAPI.setFullscreen(!isFullscreen);
+      return;
+    }
     const videoShell = videoRef.current?.closest('.video-shell');
 
     if (document.fullscreenElement) {
@@ -470,7 +480,7 @@ function VideoPlayer({ channel, channels = [], channelListLabel = 'Channels', fu
           {isFavorite ? '★ Favorite' : '☆ Add Favorite'}
         </button>
       </div>
-      <div className="video-shell" onMouseMove={handleShellMouseMove} onFocus={showControlsTemporarily}>
+      <div className={`video-shell ${isFullscreen ? 'is-fullscreen' : ''}`} onMouseMove={handleShellMouseMove} onFocus={showControlsTemporarily}>
         {isBuffering && !isStopped && (
           <div className={`video-overlay ${hasPlaybackStarted ? 'buffering-overlay' : ''}`}>
             <div className="spinner" />

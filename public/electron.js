@@ -16,8 +16,17 @@ const playerHeaders = {
 const playlistCachePath = () => path.join(app.getPath('userData'), 'playlist-cache.json');
 
 let mainWindow;
+const ownsInstance = app.requestSingleInstanceLock();
+if (!ownsInstance) app.quit();
+app.on('second-instance', () => {
+  if (!mainWindow || mainWindow.isDestroyed()) return;
+  if (mainWindow.isMinimized()) mainWindow.restore();
+  mainWindow.show();
+  mainWindow.focus();
+});
 
 const createWindow = () => {
+  if (mainWindow && !mainWindow.isDestroyed()) return;
   mainWindow = new BrowserWindow({
     width: 1280,
     height: 800,
@@ -37,14 +46,24 @@ const createWindow = () => {
     : `file://${path.join(__dirname, '../build/index.html')}`;
 
   mainWindow.loadURL(startUrl);
-  if (isDev) mainWindow.webContents.openDevTools();
+  mainWindow.webContents.setWindowOpenHandler(() => ({ action: 'deny' }));
+  const notifyFullscreen = () => mainWindow?.webContents.send('fullscreen-changed', mainWindow.isFullScreen());
+  mainWindow.on('enter-full-screen', notifyFullscreen);
+  mainWindow.on('leave-full-screen', notifyFullscreen);
+  mainWindow.webContents.on('before-input-event', (event, input) => {
+    if (input.type !== 'keyDown') return;
+    if (input.key === 'F11' || (input.key === 'Escape' && mainWindow.isFullScreen())) {
+      event.preventDefault();
+      mainWindow.setFullScreen(input.key === 'F11' && !mainWindow.isFullScreen());
+    }
+  });
 
   mainWindow.on('closed', () => {
     mainWindow = null;
   });
 };
 
-app.on('ready', createWindow);
+if (ownsInstance) app.on('ready', createWindow);
 app.on('window-all-closed', () => {
   if (process.platform !== 'darwin') app.quit();
 });
@@ -103,3 +122,10 @@ ipcMain.handle('set-playlist-cache', async (event, cache) => {
     return false;
   }
 });
+
+ipcMain.handle('set-fullscreen', (event, enabled) => {
+  if (event.sender !== mainWindow?.webContents) return false;
+  mainWindow.setFullScreen(Boolean(enabled));
+  return mainWindow.isFullScreen();
+});
+ipcMain.handle('get-fullscreen', () => Boolean(mainWindow?.isFullScreen()));
