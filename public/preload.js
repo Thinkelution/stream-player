@@ -1,6 +1,8 @@
 const { contextBridge, ipcRenderer } = require('electron');
 
 contextBridge.exposeInMainWorld('electronAPI', {
+  platform: process.platform,
+  windowAction: (action) => ipcRenderer.invoke('window-action', action),
   setFullscreen: (enabled) => ipcRenderer.invoke('set-fullscreen', enabled),
   getFullscreen: () => ipcRenderer.invoke('get-fullscreen'),
   onFullscreenChange: (callback) => {

@@ -1,4 +1,4 @@
-const { app, BrowserWindow, Menu, ipcMain } = require('electron');
+const { app, BrowserWindow, Menu, ipcMain, screen } = require('electron');
 const path = require('path');
 const fs = require('fs/promises');
 const isDev = require('electron-is-dev');
@@ -16,6 +16,43 @@ const playerHeaders = {
 const playlistCachePath = () => path.join(app.getPath('userData'), 'playlist-cache.json');
 
 let mainWindow;
+let windowsFullscreen = false;
+let windowedState = null;
+const isPlayerFullscreen = () => process.platform === 'win32'
+  ? windowsFullscreen : Boolean(mainWindow?.isFullScreen());
+const notifyFullscreen = () => {
+  if (mainWindow && !mainWindow.isDestroyed()) mainWindow.webContents.send('fullscreen-changed', isPlayerFullscreen());
+};
+const setPlayerFullscreen = (enabled) => {
+  if (!mainWindow || mainWindow.isDestroyed()) return false;
+  enabled = Boolean(enabled);
+  if (process.platform !== 'win32') {
+    mainWindow.setFullScreen(enabled);
+    return mainWindow.isFullScreen();
+  }
+  // Avoid Chromium's native Windows fullscreen transitions: Explorer can retain
+  // duplicate Alt+Tab thumbnails even when there is only one BrowserWindow.
+  // Keep the same frameless HWND and change its bounds without stealing focus.
+  if (windowsFullscreen === enabled) return enabled;
+  if (enabled) {
+    windowedState = { bounds: mainWindow.getNormalBounds(), maximized: mainWindow.isMaximized() };
+    const display = screen.getDisplayMatching(mainWindow.getBounds());
+    windowsFullscreen = true;
+    if (mainWindow.isMaximized()) mainWindow.unmaximize();
+    mainWindow.setResizable(false);
+    mainWindow.setBounds(display.bounds);
+  } else {
+    windowsFullscreen = false;
+    mainWindow.setResizable(true);
+    if (windowedState) {
+      mainWindow.setBounds(windowedState.bounds);
+      if (windowedState.maximized) mainWindow.maximize();
+    }
+    windowedState = null;
+  }
+  notifyFullscreen();
+  return windowsFullscreen;
+};
 const ownsInstance = app.requestSingleInstanceLock();
 if (!ownsInstance) app.quit();
 app.on('second-instance', () => {
@@ -27,7 +64,9 @@ app.on('second-instance', () => {
 
 const createWindow = () => {
   if (mainWindow && !mainWindow.isDestroyed()) return;
+  if (process.platform !== 'darwin') Menu.setApplicationMenu(null);
   mainWindow = new BrowserWindow({
+    frame: process.platform !== 'win32',
     width: 1280,
     height: 800,
     minWidth: 800,
@@ -45,21 +84,23 @@ const createWindow = () => {
     ? 'http://localhost:3000'
     : `file://${path.join(__dirname, '../build/index.html')}`;
 
+  if (process.platform !== 'darwin') mainWindow.setMenu(null);
   mainWindow.loadURL(startUrl);
   mainWindow.webContents.setWindowOpenHandler(() => ({ action: 'deny' }));
-  const notifyFullscreen = () => mainWindow?.webContents.send('fullscreen-changed', mainWindow.isFullScreen());
   mainWindow.on('enter-full-screen', notifyFullscreen);
   mainWindow.on('leave-full-screen', notifyFullscreen);
   mainWindow.webContents.on('before-input-event', (event, input) => {
-    if (input.type !== 'keyDown') return;
-    if (input.key === 'F11' || (input.key === 'Escape' && mainWindow.isFullScreen())) {
+    if (input.type !== 'keyDown' || input.isAutoRepeat) return;
+    if (input.key === 'F11' || (input.key === 'Escape' && isPlayerFullscreen())) {
       event.preventDefault();
-      mainWindow.setFullScreen(input.key === 'F11' && !mainWindow.isFullScreen());
+      setPlayerFullscreen(input.key === 'F11' && !isPlayerFullscreen());
     }
   });
 
   mainWindow.on('closed', () => {
     mainWindow = null;
+    windowsFullscreen = false;
+    windowedState = null;
   });
 };
 
@@ -125,7 +166,16 @@ ipcMain.handle('set-playlist-cache', async (event, cache) => {
 
 ipcMain.handle('set-fullscreen', (event, enabled) => {
   if (event.sender !== mainWindow?.webContents) return false;
-  mainWindow.setFullScreen(Boolean(enabled));
-  return mainWindow.isFullScreen();
+  return setPlayerFullscreen(enabled);
 });
-ipcMain.handle('get-fullscreen', () => Boolean(mainWindow?.isFullScreen()));
+ipcMain.handle('get-fullscreen', () => isPlayerFullscreen());
+
+ipcMain.handle('window-action', (event, action) => {
+  if (event.sender !== mainWindow?.webContents) return;
+  if (action === 'minimize') mainWindow.minimize();
+  if (action === 'maximize' && !isPlayerFullscreen()) {
+    if (mainWindow.isMaximized()) mainWindow.unmaximize();
+    else mainWindow.maximize();
+  }
+  if (action === 'close') mainWindow.close();
+});

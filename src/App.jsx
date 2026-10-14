@@ -107,6 +107,12 @@ const initialLoadingProgress = {
 };
 
 function App() {
+  const [desktopFullscreen, setDesktopFullscreen] = useState(false);
+  useEffect(() => {
+    const unsubscribe = window.electronAPI?.onFullscreenChange?.(setDesktopFullscreen);
+    window.electronAPI?.getFullscreen?.().then(setDesktopFullscreen);
+    return unsubscribe;
+  }, []);
   const [view, setView] = useState('player');
   const [seriesDetail, setSeriesDetail] = useState(null);
   const selectionRequest = useRef(0);
@@ -824,6 +830,14 @@ function App() {
 
   return (
     <div className={`app font-${config?.fontSize || 'compact'}`}>
+      {window.electronAPI?.platform === 'win32' && !desktopFullscreen && <div className="desktop-titlebar">
+        <span>OpenStreamPlayer</span>
+        <div className="desktop-window-controls">
+          <button aria-label="Minimize window" onClick={() => window.electronAPI.windowAction('minimize')}>─</button>
+          <button aria-label="Maximize or restore window" onClick={() => window.electronAPI.windowAction('maximize')}>□</button>
+          <button aria-label="Close window" onClick={() => window.electronAPI.windowAction('close')}>×</button>
+        </div>
+      </div>}
       <header className="app-header">
         <div className="brand-lockup">
           <div className="brand-mark">OS</div>
