@@ -1,6 +1,6 @@
 cask "stream-player" do
-  version "0.1.24"
-  sha256 "6fb4178eb98c2ef4d06ea6a464038326de5d463b72fdd9c0325673d18f352f08"
+  version "0.1.25"
+  sha256 "11ece7c6458056d26a91b31ff4ed7f9f3179fae636c74602e878e51db967b8ce"
 
   url "https://github.com/Thinkelution/stream-player/releases/download/v#{version}/OpenStreamPlayer-#{version}-arm64.dmg"
   name "OpenStreamPlayer"
