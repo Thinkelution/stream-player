@@ -43,6 +43,20 @@ app.whenReady().then(async () => {
       });
       return video.play();
     })()`);
+    if (process.argv.includes('--pip')) {
+      for (let cycle = 0; cycle < 2; cycle++) {
+        const size = await win.webContents.executeJavaScript(`(async () => {
+          const video = document.querySelector('body > .video-shell video');
+          const pip = await video.requestPictureInPicture();
+          return { width: pip.width, height: pip.height, active: document.pictureInPictureElement === video };
+        })()`, true);
+        assert.ok(size.active && size.width > 0 && size.height > 0, 'Native PiP window opens');
+        await delay(400);
+        await win.webContents.executeJavaScript('document.exitPictureInPicture()', true);
+        assert.equal(await win.webContents.executeJavaScript('document.pictureInPictureElement === null'), true);
+      }
+      console.log('PASS: native PiP opened and closed twice with moving video.');
+    }
     for (let cycle = 0; cycle < 4; cycle++) {
       await win.webContents.executeJavaScript('window.electronAPI.setFullscreen(true)');
       await delay(250);

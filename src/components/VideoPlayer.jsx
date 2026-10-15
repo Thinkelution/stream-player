@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import HLS from 'hls.js';
+import usePictureInPicture from './usePictureInPicture';
 
 const PLAYBACK_START_TIMEOUT_MS = 30000;
 const BUFFERING_STALL_RECOVERY_MS = 12000;
@@ -42,6 +43,8 @@ function VideoPlayer({ channel, channels = [], channelListLabel = 'Channels', fu
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [channelDrawerVisible, setChannelDrawerVisible] = useState(false);
 
+  const pip = usePictureInPicture(videoRef, channel, isFullscreen, isStopped);
+
   const isActiveSession = useCallback((sessionId) => streamSessionRef.current === sessionId, []);
 
   const keyForChannel = useCallback((item) => {
@@ -72,6 +75,7 @@ function VideoPlayer({ channel, channels = [], channelListLabel = 'Channels', fu
     const video = videoRef.current;
     if (!video) return;
 
+    if (document.pictureInPictureElement === video) document.exitPictureInPicture().catch(() => {});
     video.pause();
     video.removeAttribute('src');
     video.load();
@@ -499,6 +503,7 @@ function VideoPlayer({ channel, channels = [], channelListLabel = 'Channels', fu
             <span>{playbackError}</span>
           </div>
         )}
+        {pip.error && <div className="pip-notice" role="status">{pip.error}</div>}
         <video
           ref={videoRef}
           autoPlay
@@ -627,6 +632,13 @@ function VideoPlayer({ channel, channels = [], channelListLabel = 'Channels', fu
               {isMuted ? '🔇' : '🔊'}
             </button>
             <input className="volume-slider" type="range" min="0" max="1" step="0.05" value={isMuted ? 0 : volume} onChange={changeVolume} aria-label="Volume" />
+            {pip.supported && <button type="button" className="icon-control" onClick={pip.toggle}
+              disabled={pip.busy || (!pip.active && (!pip.ready || isStopped))}
+              aria-pressed={pip.active}
+              title={pip.active ? 'Exit Picture-in-Picture' : 'Picture-in-Picture'}
+              aria-label={pip.active ? 'Exit Picture-in-Picture' : 'Picture-in-Picture'}>
+              <svg width="20" height="16" viewBox="0 0 20 16" aria-hidden="true"><rect x="1" y="1" width="18" height="14" rx="2" fill="none" stroke="currentColor" strokeWidth="1.5" /><rect x="10" y="8" width="7" height="5" rx="1" fill="currentColor" /></svg>
+            </button>}
             <button type="button" className="icon-control" onClick={toggleFullscreen} title={isFullscreen ? 'Exit fullscreen' : 'Fullscreen'} aria-label={isFullscreen ? 'Exit fullscreen' : 'Fullscreen'}>
               {isFullscreen ? '⤢' : '⛶'}
             </button>
